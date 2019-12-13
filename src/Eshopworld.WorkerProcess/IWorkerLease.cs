@@ -10,11 +10,6 @@ namespace EShopworld.WorkerProcess
         /// </summary>
         Guid InstanceId { get; }
         /// <summary>
-        /// Initialise the <see cref="IWorkerLease"/> instance
-        /// </summary>
-        /// <returns></returns>
-        Task InitialiseAsync();
-        /// <summary>
         /// Start Leasing
         /// </summary>
         void StartLeasing();

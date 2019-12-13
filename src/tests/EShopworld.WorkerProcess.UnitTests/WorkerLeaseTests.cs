@@ -37,19 +37,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             _workerLease = new WorkerLease(_mockTelemetry.Object, _mockLeaseAllocator.Object, _mockTimer.Object,
                 Options.Create(_options));
         }
-
-        [Fact, IsUnit]
-        public async Task TestInitialiseAsync()
-        {
-            // Arrange
-
-            // Act
-            await _workerLease.InitialiseAsync();
-
-            // Assert
-            _mockLeaseAllocator.Verify(m => m.InitialiseAsync(), Times.Once);
-        }
-
+        
         [Fact, IsUnit]
         public async Task TestLeaseAsyncLeaseExpiredNoLeaseAllocated()
         {

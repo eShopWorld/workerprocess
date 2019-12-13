@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
 using Eshopworld.Core;
 using Eshopworld.DevOps;
@@ -49,16 +50,18 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         }
 
         [Fact, IsIntegration]
-        public void TestSingleLease()
+        public async Task TestSingleLease()
         {
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
             bool leaseAllocated = false;
             bool leaseExpired = false;
 
             // Arrange
+            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
             var workerLease = _serviceProvider.GetService<IWorkerLease>();
-
+            
             // Act
+            await leaseStore.InitialiseAsync();
             workerLease.StartLeasing();
 
             workerLease.LeaseAllocated += (sender, args) =>
@@ -85,16 +88,19 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         }
 
         [Fact, IsIntegration]
-        public void TestMultipleWorkLeases()
+        public async Task TestMultipleWorkLeases()
         {
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
 
             // Arrange
+            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
             SetupWorkerLeases(3, i => i);
 
             Random r = new Random();
 
             // Act
+            await leaseStore.InitialiseAsync();
+
             foreach (var workerLease in _workerLeases)
             {
                 Thread.Sleep(new TimeSpan(0, 0, 1) * r.Next(10));
@@ -124,11 +130,15 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
 
             // Arrange
+            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+
             SetupWorkerLeases(3, i => 0);
 
             Random r = new Random();
 
             // Act
+            leaseStore.InitialiseAsync();
+
             foreach (var workerLease in _workerLeases)
             {
                 Thread.Sleep(new TimeSpan(0, 0, 1) * r.Next(10));

@@ -7,10 +7,6 @@ namespace EShopworld.WorkerProcess
     public interface ILeaseAllocator
     {
         /// <summary>
-        /// Initialise the <see cref="ILeaseAllocator"/> instance
-        /// </summary>
-        Task InitialiseAsync();
-        /// <summary>
         /// Allocate a <see cref="ILease"/> to an instance
         /// </summary>
         /// <param name="instanceId">The instance id to allocate the <see cref="ILease"/></param>

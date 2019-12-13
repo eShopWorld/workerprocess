@@ -41,11 +41,6 @@ namespace EShopworld.WorkerProcess
         /// <inheritdoc />
         public Guid InstanceId { get; }
 
-        public async Task InitialiseAsync()
-        {
-            await OperationTelemetryHandlerAsync(async () => { await _leaseAllocator.InitialiseAsync().ConfigureAwait(false); });
-        }
-
         /// <inheritdoc />
         public void StartLeasing()
         {
@@ -146,29 +141,6 @@ namespace EShopworld.WorkerProcess
                 var operationEvent = new OperationTelemetryEvent(memberName);
 
                 operation();
-
-                _telemetry.Publish(operationEvent);
-            }
-            catch (Exception ex)
-            {
-                _telemetry.Publish(new LeaseExceptionEvent(ex));
-
-                throw new WorkerLeaseException(
-                    $"An unhandled exception occured executing operation [{memberName}]", ex);
-            }
-        }
-
-        [DebuggerStepThrough]
-        [ExcludeFromCodeCoverage]
-        private async Task OperationTelemetryHandlerAsync(
-            Func<Task> operation,
-            [CallerMemberName] string memberName = "")
-        {
-            try
-            {
-                var operationEvent = new OperationTelemetryEvent(memberName);
-
-                await operation();
 
                 _telemetry.Publish(operationEvent);
             }

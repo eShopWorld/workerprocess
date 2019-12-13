@@ -26,12 +26,6 @@ namespace EShopworld.WorkerProcess
         }
 
         /// <inheritdoc />
-        public async Task InitialiseAsync()
-        {
-            await _leaseStore.InitialiseAsync().ConfigureAwait(false);
-        }
-
-        /// <inheritdoc />
         public async Task<ILease> AllocateLeaseAsync(Guid instanceId)
         {
             var lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.LeaseType).ConfigureAwait(false);
