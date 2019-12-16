@@ -69,15 +69,15 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
                 leaseAllocated = true;
             };
-
-            workerLease.StartLeasing();
-
+            
             workerLease.LeaseExpired += (sender, args) =>
             {
                 _output.WriteLine($"[{DateTime.UtcNow}] Lease expired");
                 leaseExpired = true;
                 manualResetEvent.Set();
             };
+
+            workerLease.StartLeasing();
 
             manualResetEvent.WaitOne(new TimeSpan(0, 2, 30));
 
