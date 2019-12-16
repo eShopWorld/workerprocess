@@ -8,13 +8,12 @@ namespace EShopworld.WorkerProcess.Configuration
         private int _priority;
 
         /// <summary>
-        ///     The Lease type
+        ///     This is a category type of a worker that acquires leases.
         /// </summary>
         /// <remarks>
-        ///     This is an type of the class of worker that acquired the lease.
         ///     This is a domain specific value, for example it can be returnsprocessor etc
         /// </remarks>
-        public string LeaseType { get; set; }
+        public string WorkerType { get; set; }
 
         /// <summary>
         ///     The worker process priority.
@@ -36,6 +35,6 @@ namespace EShopworld.WorkerProcess.Configuration
         /// <summary>
         ///     The amount of time in minutes that the lease interval executes
         /// </summary>
-        public TimeSpan LeaseInterval { get; set; }
+        public TimeSpan LeaseInterval { get; set; } = new TimeSpan(0,5,0);
     }
 }

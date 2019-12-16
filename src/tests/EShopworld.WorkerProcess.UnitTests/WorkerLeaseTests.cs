@@ -31,7 +31,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             {
                 LeaseInterval = new TimeSpan(0, 2, 0),
                 Priority = 1,
-                LeaseType = "workertype"
+                WorkerType = "workertype"
             };
 
             _workerLease = new WorkerLease(_mockTelemetry.Object, _mockLeaseAllocator.Object, _mockTimer.Object,

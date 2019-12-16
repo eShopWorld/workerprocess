@@ -12,7 +12,13 @@ Install-Package EShopworld.WorkerProcess
 
 ## IWorkerLease
 
-The IWorkerLease component allows distinct instances of IWorkerLease components to cooperatively acquire a mutual exclusion lease for a period of time.
+The IWorkerLease component allows distinct instances of IWorkerLease components to cooperatively acquire and release a mutual exclusion lease for a period of time.
+
+Since there is no central lease manager each of the IWorkerLease instances must cooperate to acquire and release lease instances. Worker lease instances will schedule themselves to acquire leases at the configured Leaseinterval.
+
+For example if the LeaseInterval is 10 minutes each of the IWorkerLease instances will schedule the first lease acquire cycle for the next whole interval with in the hour. So if the workers start the lease cycle at 12:01, each IWorkerLease will wait until 12:10 to start the lease cycle.
+
+**NOTE:** Since the IWorkerLease instances synchronise the acquiring of leases based on the local time of the machine it is important that the clocks be syncronised via NTP. Any inaccuracy in the clocks will effect the lower bound for the LeaseInterval and or the concurrency of the lease acquisition by the various IWorkerLease instances.
 
 ### Usage
 
@@ -27,6 +33,28 @@ In the public void ConfigureServices(IServiceCollection services) method include
 
 NOTE: The above creates a singleton instance of the IWorkerLease component. This is fine for a single executing process but will not give the correct behavior when multiple IWorkerLease instances are required for managing separate worker threads.
 
+```csharp
+    // One off initalisation of the ILeaseStore instance
+    await leaseStore.InitialiseAsync();
+
+    // Attach the lease allocated callback
+    workerLease.LeaseAllocated += (sender, args) =>
+    {
+        _output.WriteLine($"[{DateTime.UtcNow}] Lease allocated until [{args.Expiry}]");
+        // Start doing work
+    };
+
+    workerLease.LeaseExpired += (sender, args) =>
+    {
+        _output.WriteLine($"[{DateTime.UtcNow}] Lease expired");
+        
+        // Stop doing work
+    };
+
+    // Start this worker lease instance leasing
+    workerLease.StartLeasing();
+```
+
 ### Initialise default ILeaseStore
 
 The default ILeaseStore is based on CosmosDb document database. This store needs to be initialised once off to create the database and collection to store the worker process leases.
@@ -40,3 +68,6 @@ The default ILeaseStore is based on CosmosDb document database. This store needs
 
 Configuration Setting | Description | Default
 ---------|----------|----------
+WorkerType | This is a category type of a worker that acquires leases | There is no default value and the worker type should be set to a domain specific value
+Priority | This is the priority of the worker process | The default is zero which is the highest priority
+LeaseInterval | The amount of time in minutes that the lease is acquired | Defaults to 5 mins

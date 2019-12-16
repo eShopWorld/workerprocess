@@ -62,14 +62,15 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             
             // Act
             await leaseStore.InitialiseAsync();
-            workerLease.StartLeasing();
-
+            
             workerLease.LeaseAllocated += (sender, args) =>
             {
                 _output.WriteLine($"[{DateTime.UtcNow}] Lease allocated until [{args.Expiry}]");
 
                 leaseAllocated = true;
             };
+
+            workerLease.StartLeasing();
 
             workerLease.LeaseExpired += (sender, args) =>
             {
@@ -170,7 +171,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 {
                     LeaseInterval = new TimeSpan(0, 1, 0),
                     Priority = assignPriorityFunc(i),
-                    LeaseType = "workertype"
+                    WorkerType = "workertype"
                 });
 
                 var telemetry = _serviceProvider.GetService<IBigBrother>();

@@ -28,11 +28,11 @@ namespace EShopworld.WorkerProcess
         /// <inheritdoc />
         public async Task<ILease> AllocateLeaseAsync(Guid instanceId)
         {
-            var lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.LeaseType).ConfigureAwait(false);
+            var lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
 
             if (lease == null)
             {
-                var leaseResult = await _leaseStore.TryCreateLeaseAsync(_options.Value.LeaseType,
+                var leaseResult = await _leaseStore.TryCreateLeaseAsync(_options.Value.WorkerType,
                     _options.Value.Priority, instanceId).ConfigureAwait(false);
 
                 if (leaseResult.Result)
@@ -42,7 +42,7 @@ namespace EShopworld.WorkerProcess
                 else
                 {
                     // another worker lease created the lease before this worker read the created lease
-                    lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.LeaseType).ConfigureAwait(false);
+                    lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
                 }
             }
 
@@ -62,7 +62,7 @@ namespace EShopworld.WorkerProcess
                     // backoff to allow other worker lease instances to update the lease
                     var delay = _allocationDelay.Calculate(_options.Value.Priority, _options.Value.LeaseInterval);
 
-                    _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.LeaseType,
+                    _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                         _options.Value.Priority,
                         $"Lease activation delayed [{delay}]. Allocated Lease Id: [{lease.Id}]"));
 
@@ -75,29 +75,29 @@ namespace EShopworld.WorkerProcess
 
                     if (updateResult.Result)
                     {
-                        _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.LeaseType,
+                        _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                             _options.Value.Priority,
                             $"Lease acquired. {GenerateLeaseInfo(updateResult.Lease)}"));
 
                         return updateResult.Lease;
                     }
 
-                    _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.LeaseType,
+                    _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                         _options.Value.Priority,
                         $"Lease activation failed lease already acquired. Allocated Lease Id: [{lease.Id}]"));
                 }
 
                 // Read the lease for event
-                lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.LeaseType).ConfigureAwait(false);
+                lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
 
-                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.LeaseType,
+                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                     _options.Value.Priority,
                     $"Lease acquisition failed lease already acquired. {GenerateLeaseInfo(lease)}"));
             }
             else
             {
                 // lease already acquired
-                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.LeaseType,
+                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                     _options.Value.Priority,
                     $"Lease acquisition failed lease already acquired. {GenerateLeaseInfo(lease)}"));
             }
@@ -118,7 +118,7 @@ namespace EShopworld.WorkerProcess
 
             if (!updateResult.Result)
             {
-                _telemetry.Publish(new LeaseReleaseEvent(instanceId, _options.Value.LeaseType,
+                _telemetry.Publish(new LeaseReleaseEvent(instanceId, _options.Value.WorkerType,
                     _options.Value.Priority,
                     $"Lease release failed. Lease Id: [{instanceId}]"));
             }

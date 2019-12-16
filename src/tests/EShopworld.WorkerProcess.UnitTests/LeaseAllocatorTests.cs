@@ -30,7 +30,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             {
                 LeaseInterval = new TimeSpan(0, 2, 0),
                 Priority = 1,
-                LeaseType = "workertype"
+                WorkerType = "workertype"
             };
 
             _leaseAllocator = new LeaseAllocator(_mockTelemetry.Object, _mockStore.Object, _mockAllocationDelay.Object,
@@ -49,7 +49,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 InstanceId = Guid.NewGuid(),
                 LeasedUntil = currentDateTime.Add(new TimeSpan(1, 0, 0)),
                 Priority = _options.Priority + 1,
-                LeaseType = _options.LeaseType
+                LeaseType = _options.WorkerType
             });
 
             // Act
@@ -71,7 +71,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 InstanceId = Guid.NewGuid(),
                 LeasedUntil = currentDateTime.Subtract(new TimeSpan(1, 0, 0)),
                 Priority = _options.Priority + 1,
-                LeaseType = _options.LeaseType
+                LeaseType = _options.WorkerType
             };
 
             _mockStore.Setup(m => m.ReadByLeaseTypeAsync(It.IsAny<string>())).ReturnsAsync(lease);
@@ -108,7 +108,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 InstanceId = Guid.NewGuid(),
                 LeasedUntil = currentDateTime.Add(new TimeSpan(1, 0, 0)),
                 Priority = 0,
-                LeaseType = _options.LeaseType
+                LeaseType = _options.WorkerType
             });
 
             // Act
@@ -130,7 +130,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 InstanceId = Guid.NewGuid(),
                 LeasedUntil = null,
                 Priority = _options.Priority + 1,
-                LeaseType = _options.LeaseType
+                LeaseType = _options.WorkerType
             });
 
             // Act
@@ -218,7 +218,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 .ReturnsAsync(lease);
 
             _mockStore.Setup(m => m.TryCreateLeaseAsync(
-                    It.Is<string>(s => s == _options.LeaseType),
+                    It.Is<string>(s => s == _options.WorkerType),
                     It.Is<int>(i => i == _options.Priority),
                     It.IsAny<Guid>()))
                 .ReturnsAsync(new LeaseStoreResult(null, false));
@@ -245,13 +245,13 @@ namespace EShopworld.WorkerProcess.UnitTests
                 Priority = 0
             };
 
-            _mockStore.SetupSequence(m => m.ReadByLeaseTypeAsync(It.Is<string>(s => s == _options.LeaseType)))
+            _mockStore.SetupSequence(m => m.ReadByLeaseTypeAsync(It.Is<string>(s => s == _options.WorkerType)))
                 .ReturnsAsync((ILease) null)
                 .ReturnsAsync(lease)
                 .ReturnsAsync(lease);
 
             _mockStore.Setup(m => m.TryCreateLeaseAsync(
-                    It.Is<string>(s => s == _options.LeaseType),
+                    It.Is<string>(s => s == _options.WorkerType),
                     It.Is<int>(i => i == _options.Priority),
                     It.IsAny<Guid>()))
                 .ReturnsAsync(new LeaseStoreResult(null, false));

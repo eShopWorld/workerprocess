@@ -36,6 +36,11 @@ namespace EShopworld.WorkerProcess
             _timer = timer ?? throw new ArgumentNullException(nameof(timer));
 
             InstanceId = Guid.NewGuid();
+
+            if (string.IsNullOrWhiteSpace(_options.Value.WorkerType))
+            {
+                throw new ArgumentOutOfRangeException($"{nameof(options.Value.WorkerType)} cannot be null or empty");
+            }
         }
 
         /// <inheritdoc />
