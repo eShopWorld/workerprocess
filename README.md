@@ -66,8 +66,19 @@ The default ILeaseStore is based on CosmosDb document database. This store needs
 
 ### Configuration Options
 
+#### WorkerLeaseOptions
+
 Configuration Setting | Description | Default
 ---------|----------|----------
 WorkerType | This is a category type of a worker that acquires leases | There is no default value and the worker type should be set to a domain specific value
 Priority | This is the priority of the worker process | The default is zero which is the highest priority
 LeaseInterval | The amount of time in minutes that the lease is acquired | Defaults to 5 mins
+
+##### CosmosDataStoreOptions
+
+Configuration Setting | Description | Default
+---------|----------|----------
+Database | The CosmosDB database name | WorkerProcess
+Collection | The cosmosDB collection name to store the lease | WorkerLeases
+ConsistencyLevel | The consistency level for the store | Strong
+OfferThroughput | The offer through put used when creating the collection | 400
