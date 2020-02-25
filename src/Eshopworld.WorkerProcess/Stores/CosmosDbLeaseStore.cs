@@ -45,7 +45,7 @@ namespace EShopworld.WorkerProcess.Stores
                 Id = _options.Value.Collection
             };
 
-            collectionDefinition.PartitionKey.Paths.Add("/instanceId");
+            collectionDefinition.PartitionKey.Paths.Add("/leaseType");
 
             await _documentClient.CreateDocumentCollectionIfNotExistsAsync(
                 UriFactory.CreateDatabaseUri(_options.Value.Database),
