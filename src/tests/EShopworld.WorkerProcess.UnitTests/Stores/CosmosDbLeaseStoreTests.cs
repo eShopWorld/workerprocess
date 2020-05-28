@@ -94,6 +94,30 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         }
 
         [Fact, IsUnit]
+        public async Task TestTryUpdateLeaseAsyncFailed_WithPreconditionFailedException()
+        {
+            // Arrange
+            CosmosDbLease lease = new CosmosDbLease
+            {
+                Id = Guid.NewGuid().ToString()
+            };
+
+            _mockDocumentClient.Setup(m => m.ReplaceDocumentAsync(
+                    It.IsAny<Uri>(),
+                    It.IsAny<object>(),
+                    It.IsAny<RequestOptions>(),
+                    CancellationToken.None))
+                .ThrowsAsync(CreateDocumentClientExceptionForTesting(string.Empty, new Exception(),
+                    HttpStatusCode.PreconditionFailed));
+
+            // Act
+            var result = await _store.TryUpdateLeaseAsync(lease);
+
+            // Assert
+            result.Result.Should().BeFalse();
+        }
+
+        [Fact, IsUnit]
         public async Task TestReadByLeaseTypeAsync()
         {
             // Arrange

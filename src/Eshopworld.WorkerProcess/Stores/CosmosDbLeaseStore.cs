@@ -86,6 +86,10 @@ namespace EShopworld.WorkerProcess.Stores
                 {
                     return new LeaseStoreResult(null, false);
                 }
+                catch (DocumentClientException ex) when (ex.StatusCode == HttpStatusCode.PreconditionFailed)
+                {
+                    return new LeaseStoreResult(null, false);
+                }
             }).ConfigureAwait(false);
         }
 
