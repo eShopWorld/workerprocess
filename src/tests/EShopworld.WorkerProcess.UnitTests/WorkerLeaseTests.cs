@@ -6,6 +6,7 @@ using Eshopworld.Tests.Core;
 using EShopworld.WorkerProcess.Configuration;
 using EShopworld.WorkerProcess.Infrastructure;
 using EShopworld.WorkerProcess.Stores;
+using EShopworld.WorkerProcess.Telemetry;
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -107,6 +108,50 @@ namespace EShopworld.WorkerProcess.UnitTests
             // Assert
             _mockTimer.Verify(m => m.Stop(), Times.Once);
             _mockTimer.VerifyRemove(m => m.Elapsed -= It.IsAny<EventHandler<ElapsedEventArgs>>());
+        }
+
+        [Fact, IsUnit]
+        public async Task TestLeaseExpiredNotFiredWorkaround()
+        {
+            // Arrange
+            double leaseIntervalMilliseconds = 0;
+
+            // Timer Elapsed firing at expected time. If a few milliseconds after leaseIntervalMilliseconds after then leaseIntervalMilliseconds is also adjusted as expected
+            ServerDateTime.UtcNowFunc = () => new DateTime(2000, 1, 1, 12, 12, 00);
+
+            // Problem seems to stem from lease until being before timer elapsed. From AI logs, appears to be 1 second earlier
+            _mockLeaseAllocator.Setup(m => m.AllocateLeaseAsync(It.IsAny<Guid>()))
+                .ReturnsAsync(new TestLease { LeasedUntil = new DateTime(2000, 1, 1, 12, 11, 59) });
+
+            _mockTimer.SetupSet(p => p.Interval = It.IsAny<double>()).Callback<double>(value => leaseIntervalMilliseconds = value);
+
+            var options = new WorkerLeaseOptions
+            {
+                LeaseInterval = new TimeSpan(0, 12, 0),
+                Priority = 0,
+                WorkerType = "workertype"
+            };
+
+            var workerLease = new WorkerLease(_mockTelemetry.Object, _mockLeaseAllocator.Object, _mockTimer.Object,
+                Options.Create(options));
+
+            // Act
+            await workerLease.LeaseAsync();
+
+            // Assert
+
+            // Due to workaround, AI IntervalDelay event log shows that 5sec is ensure next interval is calculated around 12:24
+            _mockTelemetry.Verify(t => t.Publish(It.Is<OperationTelemetryEvent>(e => e.OperationName == "IntervalDelay"),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<int>()));
+
+            leaseIntervalMilliseconds.Should().Be(720000);
+
+            // Without workaround, this is 1000ms.
+            // TimerElapsed will fire in 1 second and we'll see a "Lease activation failed lease already acquired" OperationTelemetryEvent
+            // The lease failure will then clear a perfectly valid lease from the active worker
+            // At next lease interval LeaseExpired() will not fire as lease is null
         }
     }
 }

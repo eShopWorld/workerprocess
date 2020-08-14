@@ -75,6 +75,14 @@ namespace EShopworld.WorkerProcess
         /// <inheritdoc />
         public event EventHandler<EventArgs> LeaseExpired;
 
+        private void IntervalDelay()
+        {
+            OperationTelemetryHandler(() =>
+            {
+                _timer.Interval = CalculateTimerInterval(ServerDateTime.UtcNow, _options.Value.LeaseInterval);
+            });
+        }
+
         internal async Task LeaseAsync()
         {
             _timer.Stop();
@@ -93,10 +101,21 @@ namespace EShopworld.WorkerProcess
                 if (CurrentLease != null)
                     OnLeaseAllocated(CurrentLease.LeasedUntil.GetValueOrDefault());
 
-                _timer.Interval =
+                var proposedInterval =
                     CalculateTimerInterval(
                         CurrentLease?.LeasedUntil ?? ServerDateTime.UtcNow,
                         _options.Value.LeaseInterval);
+
+                // If proposed interval is shorter than expected, set a short delay, re-evaluate and log as an OperationTelemetryEvent
+                if (proposedInterval < 5000)
+                {
+                    await Task.Delay(5000);
+                    IntervalDelay();
+                }
+                else
+                {
+                    _timer.Interval = proposedInterval;
+                }
             }
             finally
             {
