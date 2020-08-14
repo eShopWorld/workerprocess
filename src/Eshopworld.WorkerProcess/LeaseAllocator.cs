@@ -82,33 +82,27 @@ namespace EShopworld.WorkerProcess
                         return updateResult.Lease;
                     }
 
-                    LogLeaseAlreadyAcquiredEvent(instanceId, lease);
+                    _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                        _options.Value.Priority,
+                        $"Lease activation failed lease already acquired. Allocated Lease Id: [{lease.Id}]"));
                 }
 
                 // Read the lease for event
                 lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
 
-                if(lease.InstanceId == instanceId)
-                {
-                    return lease;
-                }
-
-                LogLeaseAlreadyAcquiredEvent(instanceId, lease);
+                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                    _options.Value.Priority,
+                    $"Lease acquisition failed lease already acquired. {GenerateLeaseInfo(lease)}"));
             }
             else
             {
                 // lease already acquired
-                LogLeaseAlreadyAcquiredEvent(instanceId, lease);
+                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                    _options.Value.Priority,
+                    $"Lease acquisition failed lease already acquired. {GenerateLeaseInfo(lease)}"));
             }
 
             return null;
-        }
-
-        private void LogLeaseAlreadyAcquiredEvent(Guid instanceId, ILease lease)
-        {
-            _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
-                    _options.Value.Priority,
-                    $"Lease acquisition failed lease already acquired. {GenerateLeaseInfo(lease)}"));
         }
 
         /// <inheritdoc />
