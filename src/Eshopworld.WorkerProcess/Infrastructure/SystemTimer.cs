@@ -14,7 +14,8 @@ namespace EShopworld.WorkerProcess.Infrastructure
 
         public SystemTimer()
         {
-            _timer = new Timer();
+            // As we explicitly stop/start in TimerElapsed, no need for auto-reset, which is on by default
+            _timer = new Timer() { AutoReset = false };
             _timer.Elapsed += TimerElapsed;
         }
 

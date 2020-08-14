@@ -82,7 +82,7 @@ namespace EShopworld.WorkerProcess.Stores
                     return new LeaseStoreResult(MapResource(response),
                         response.StatusCode == HttpStatusCode.OK);
                 }
-                catch (DocumentClientException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+                catch (DocumentClientException ex) when (ex.StatusCode == HttpStatusCode.Conflict || ex.StatusCode == HttpStatusCode.Conflict)
                 {
                     return new LeaseStoreResult(null, false);
                 }
