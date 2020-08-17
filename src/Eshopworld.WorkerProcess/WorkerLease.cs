@@ -93,10 +93,16 @@ namespace EShopworld.WorkerProcess
                 if (CurrentLease != null)
                     OnLeaseAllocated(CurrentLease.LeasedUntil.GetValueOrDefault());
 
-                _timer.Interval =
-                    CalculateTimerInterval(
+                if(CurrentLease?.LeasedUntil.HasValue ?? false)
+                {
+                    _timer.Interval = CurrentLease.Interval.Value.TotalMilliseconds;
+                }
+                else
+                {
+                    _timer.Interval = CalculateTimerInterval(
                         CurrentLease?.LeasedUntil ?? ServerDateTime.UtcNow,
                         _options.Value.LeaseInterval);
+                }
             }
             finally
             {

@@ -18,6 +18,8 @@ namespace EShopworld.WorkerProcess.Stores
         /// <inheritdoc />
         [JsonProperty("leasedUntil")]
         public DateTime? LeasedUntil { get; set; }
+        [JsonProperty("interval")]
+        public TimeSpan? Interval { get; set; }
         /// <inheritdoc />
         [JsonProperty("leaseType")]
         public string LeaseType { get; set; }

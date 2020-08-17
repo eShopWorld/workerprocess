@@ -69,7 +69,11 @@ namespace EShopworld.WorkerProcess
                     await Task.Delay(delay).ConfigureAwait(false);
 
                     // activate
-                    lease.LeasedUntil = GetLeaseUntil(_options.Value.LeaseInterval);
+                    var now = ServerDateTime.UtcNow;
+                    lease.Interval = TimeSpan.FromMilliseconds(_options.Value.LeaseInterval.TotalMilliseconds -
+                                        now.TimeOfDay.TotalMilliseconds / _options.Value.LeaseInterval.TotalMilliseconds % 1 *
+                                        _options.Value.LeaseInterval.TotalMilliseconds);
+                    lease.LeasedUntil = now.Add(lease.Interval.Value);
 
                     updateResult = await _leaseStore.TryUpdateLeaseAsync(lease).ConfigureAwait(false);
 
@@ -112,6 +116,7 @@ namespace EShopworld.WorkerProcess
 
             lease.Priority = -1;
             lease.LeasedUntil = null;
+            lease.Interval = null;
             lease.InstanceId = null;
 
             var updateResult = await _leaseStore.TryUpdateLeaseAsync(lease).ConfigureAwait(false);
@@ -122,15 +127,6 @@ namespace EShopworld.WorkerProcess
                     _options.Value.Priority,
                     $"Lease release failed. Lease Id: [{instanceId}]"));
             }
-        }
-
-        private static DateTime GetLeaseUntil(TimeSpan interval)
-        {
-            var now = ServerDateTime.UtcNow;
-
-            return now.AddMilliseconds(interval.TotalMilliseconds -
-                                       now.TimeOfDay.TotalMilliseconds / interval.TotalMilliseconds % 1 *
-                                       interval.TotalMilliseconds);
         }
 
         private static string GenerateLeaseInfo(ILease lease)

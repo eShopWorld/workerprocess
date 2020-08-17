@@ -22,6 +22,7 @@ using Xunit.Abstractions;
 
 namespace EShopworld.WorkerProcess.IntegrationTests
 {
+    [Collection("WorkerLeases")]
     public class WorkerLeaseTests
     {
         private readonly ServiceProvider _serviceProvider;
