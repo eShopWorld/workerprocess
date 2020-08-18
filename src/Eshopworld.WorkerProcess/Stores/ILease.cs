@@ -25,6 +25,11 @@ namespace EShopworld.WorkerProcess.Stores
         DateTime? LeasedUntil { get; set; }
 
         /// <summary>
+        /// The interval of the lease
+        /// </summary>
+        TimeSpan? Interval { get; set; }
+
+        /// <summary>
         /// The lease type
         /// </summary>
         string LeaseType { get; set; }

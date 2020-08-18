@@ -21,6 +21,7 @@ namespace EShopworld.WorkerProcess
         private readonly ILeaseAllocator _leaseAllocator;
         private readonly IBigBrother _telemetry;
         private readonly ITimer _timer;
+        private readonly ISlottedInterval _slottedInterval;
 
         internal ILease CurrentLease;
 
@@ -28,12 +29,14 @@ namespace EShopworld.WorkerProcess
             IBigBrother telemetry,
             ILeaseAllocator leaseAllocator,
             ITimer timer,
+            ISlottedInterval slottedInterval,
             IOptions<WorkerLeaseOptions> options)
         {
             _telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
             _leaseAllocator = leaseAllocator ?? throw new ArgumentNullException(nameof(leaseAllocator));
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _timer = timer ?? throw new ArgumentNullException(nameof(timer));
+            _slottedInterval = slottedInterval ?? throw new ArgumentNullException(nameof(slottedInterval));
 
             InstanceId = Guid.NewGuid();
 
@@ -53,7 +56,7 @@ namespace EShopworld.WorkerProcess
             {
                 _timer.Elapsed += TimerElapsed;
 
-                _timer.Interval = CalculateTimerInterval(ServerDateTime.UtcNow, _options.Value.LeaseInterval);
+                _timer.Interval = _slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval).TotalMilliseconds;
                 _timer.Start();
             });
         }
@@ -93,10 +96,16 @@ namespace EShopworld.WorkerProcess
                 if (CurrentLease != null)
                     OnLeaseAllocated(CurrentLease.LeasedUntil.GetValueOrDefault());
 
-                _timer.Interval =
-                    CalculateTimerInterval(
+                if(CurrentLease?.LeasedUntil.HasValue ?? false)
+                {
+                    _timer.Interval = CurrentLease.Interval.Value.TotalMilliseconds;
+                }
+                else
+                {
+                    _timer.Interval = _slottedInterval.Calculate(
                         CurrentLease?.LeasedUntil ?? ServerDateTime.UtcNow,
-                        _options.Value.LeaseInterval);
+                        _options.Value.LeaseInterval).TotalMilliseconds;
+                }
             }
             finally
             {
@@ -126,13 +135,6 @@ namespace EShopworld.WorkerProcess
         private protected void OnLeaseAllocated(DateTime leaseExpiry)
         {
             LeaseAllocated?.Invoke(this, new LeaseAllocatedEventArgs(leaseExpiry));
-        }
-
-        private static double CalculateTimerInterval(DateTime time, TimeSpan interval)
-        {
-            return interval.TotalMilliseconds -
-                   time.TimeOfDay.TotalMilliseconds / interval.TotalMilliseconds % 1 *
-                   interval.TotalMilliseconds;
         }
 
         [DebuggerStepThrough]
