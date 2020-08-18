@@ -55,7 +55,8 @@ namespace EShopworld.WorkerProcess.UnitTests
             _workerLease.CurrentLease = new TestLease
             {
                 InstanceId = _workerLease.InstanceId,
-                LeasedUntil = new DateTime(2000, 1, 1, 11, 0, 0)
+                LeasedUntil = new DateTime(2000, 1, 1, 11, 0, 0),
+                Interval = TimeSpan.FromMinutes(2)
             };
 
             _workerLease.LeaseExpired += (sender, args) => { eventFired = true; };
@@ -65,7 +66,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             // Assert
             eventFired.Should().BeTrue();
-            _mockTimer.VerifySet(m => m.Interval = _options.LeaseInterval.Minutes * 60 * 1000);
+            _mockSlottedInterval.Verify(m => m.Calculate(new DateTime(2000, 1, 1, 12, 0, 0), TimeSpan.FromMinutes(2)));
             _mockLeaseAllocator.Verify(m => m.ReleaseLeaseAsync(It.IsAny<ILease>()));
         }
 
@@ -76,7 +77,10 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             // Arrange
             _mockLeaseAllocator.Setup(m => m.AllocateLeaseAsync(It.IsAny<Guid>()))
-                .ReturnsAsync(new TestLease {LeasedUntil = DateTime.UtcNow});
+                .ReturnsAsync(new TestLease {
+                    LeasedUntil = DateTime.UtcNow,
+                    Interval = TimeSpan.FromMinutes(2)
+                });
 
             _workerLease.LeaseAllocated += (sender, args) => { eventFired = true; };
 
@@ -97,7 +101,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             _workerLease.StartLeasing();
 
             // Assert
-            _mockTimer.VerifySet(m => m.Interval = _options.LeaseInterval.Minutes * 60 * 1000);
+            _mockSlottedInterval.Verify(m => m.Calculate(new DateTime(2000, 1, 1, 12, 0, 0), TimeSpan.FromMinutes(2)));
             _mockTimer.Verify(m => m.Start(), Times.Once);
         }
 

@@ -73,6 +73,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 InstanceId = Guid.NewGuid(),
                 LeasedUntil = currentDateTime.Subtract(new TimeSpan(1, 0, 0)),
                 Priority = _options.Priority + 1,
+                Interval = TimeSpan.FromMinutes(2),
                 LeaseType = _options.WorkerType
             };
 
@@ -85,6 +86,9 @@ namespace EShopworld.WorkerProcess.UnitTests
             _mockStore.SetupSequence(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
                 .ReturnsAsync(new LeaseStoreResult(lease, true))
                 .ReturnsAsync(new LeaseStoreResult(lease, true));
+
+            _mockSlottedInterval.Setup(m => m.Calculate(It.IsAny<DateTime>(), It.IsAny<TimeSpan>()))
+                .Returns(TimeSpan.FromMinutes(2));
 
             // Act
             var result = await _leaseAllocator.AllocateLeaseAsync(Guid.NewGuid());
@@ -163,6 +167,9 @@ namespace EShopworld.WorkerProcess.UnitTests
             _mockStore.SetupSequence(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
                 .ReturnsAsync(new LeaseStoreResult(lease, true))
                 .ReturnsAsync(new LeaseStoreResult(lease, true));
+
+            _mockSlottedInterval.Setup(m => m.Calculate(It.IsAny<DateTime>(), It.IsAny<TimeSpan>()))
+                .Returns(TimeSpan.FromMinutes(2));
 
             // Act
             var result = await _leaseAllocator.AllocateLeaseAsync(Guid.NewGuid());
