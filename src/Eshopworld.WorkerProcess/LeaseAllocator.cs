@@ -14,13 +14,19 @@ namespace EShopworld.WorkerProcess
         private readonly IOptions<WorkerLeaseOptions> _options;
         private readonly IAllocationDelay _allocationDelay;
         private readonly ILeaseStore _leaseStore;
+        private readonly ISlottedInterval _slottedInterval;
         private readonly IBigBrother _telemetry;
 
-        public LeaseAllocator(IBigBrother telemetry, ILeaseStore leaseStore, IAllocationDelay allocationDelay,
+        public LeaseAllocator(
+            IBigBrother telemetry,
+            ILeaseStore leaseStore,
+            ISlottedInterval slottedInterval,
+            IAllocationDelay allocationDelay,
             IOptions<WorkerLeaseOptions> options)
         {
             _telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
             _leaseStore = leaseStore ?? throw new ArgumentNullException(nameof(leaseStore));
+            _slottedInterval = slottedInterval ?? throw new ArgumentNullException(nameof(slottedInterval));
             _allocationDelay = allocationDelay ?? throw new ArgumentNullException(nameof(allocationDelay));
             _options = options ?? throw new ArgumentNullException(nameof(options));
         }
@@ -70,9 +76,7 @@ namespace EShopworld.WorkerProcess
 
                     // activate
                     var now = ServerDateTime.UtcNow;
-                    lease.Interval = TimeSpan.FromMilliseconds(_options.Value.LeaseInterval.TotalMilliseconds -
-                                        now.TimeOfDay.TotalMilliseconds / _options.Value.LeaseInterval.TotalMilliseconds % 1 *
-                                        _options.Value.LeaseInterval.TotalMilliseconds);
+                    lease.Interval = _slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval);
                     lease.LeasedUntil = now.Add(lease.Interval.Value);
 
                     updateResult = await _leaseStore.TryUpdateLeaseAsync(lease).ConfigureAwait(false);

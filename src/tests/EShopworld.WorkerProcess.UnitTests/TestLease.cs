@@ -9,6 +9,7 @@ namespace EShopworld.WorkerProcess.UnitTests
         public int Priority { get; set; }
         public Guid? InstanceId { get; set; }
         public DateTime? LeasedUntil { get; set; }
+        public TimeSpan? Interval { get; set; }
         public string LeaseType { get; set; }
     }
 }

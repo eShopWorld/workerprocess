@@ -15,6 +15,7 @@ namespace EShopworld.WorkerProcess.UnitTests
     public class LeaseAllocatorTests
     {
         private readonly Mock<IAllocationDelay> _mockAllocationDelay;
+        private readonly Mock<ISlottedInterval> _mockSlottedInterval;
         private readonly Mock<IBigBrother> _mockTelemetry;
         private readonly Mock<ILeaseStore> _mockStore;
         private readonly WorkerLeaseOptions _options;
@@ -23,6 +24,7 @@ namespace EShopworld.WorkerProcess.UnitTests
         public LeaseAllocatorTests()
         {
             _mockAllocationDelay = new Mock<IAllocationDelay>();
+            _mockSlottedInterval = new Mock<ISlottedInterval>();
             _mockTelemetry = new Mock<IBigBrother>();
             _mockStore = new Mock<ILeaseStore>();
 
@@ -33,7 +35,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 WorkerType = "workertype"
             };
 
-            _leaseAllocator = new LeaseAllocator(_mockTelemetry.Object, _mockStore.Object, _mockAllocationDelay.Object,
+            _leaseAllocator = new LeaseAllocator(_mockTelemetry.Object, _mockStore.Object, _mockSlottedInterval.Object, _mockAllocationDelay.Object,
                 Options.Create(_options));
         }
 

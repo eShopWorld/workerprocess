@@ -25,6 +25,8 @@ namespace EShopworld.WorkerProcess.Configuration
 
             services.TryAddSingleton<IAllocationDelay, ProportionalAllocationDelay>();
 
+            services.TryAddSingleton<ISlottedInterval, SlottedInterval>();
+
             services.TryAddSingleton<ILeaseAllocator, LeaseAllocator>();
 
             services.TryAddSingleton<ILeaseStore, CosmosDbLeaseStore>();
