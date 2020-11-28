@@ -61,8 +61,9 @@ namespace EShopworld.WorkerProcess.UnitTests
             result.Should().BeNull();
         }
 
+
         [Fact, IsUnit]
-        public async Task TestAllocateLeaseAsyncExistingExpiredLeaseLeaseCreated()
+        public async Task TestAllocateLeaseAsyncExistingExpiredLeaseShouldUpdateLease()
         {
             // Arrange
             DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
@@ -80,26 +81,25 @@ namespace EShopworld.WorkerProcess.UnitTests
             _mockStore.Setup(m => m.ReadByLeaseTypeAsync(It.IsAny<string>())).ReturnsAsync(lease);
 
             _mockStore.Setup(m =>
-                    m.TryCreateLeaseAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<Guid>()))
-                .ReturnsAsync(new LeaseStoreResult(lease, true));
+                    m.SelectWinnerRequestAsync(lease.LeaseType))
+                .ReturnsAsync(lease.InstanceId);
 
-            _mockStore.SetupSequence(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
-                .ReturnsAsync(new LeaseStoreResult(lease, true))
+            _mockStore.Setup(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
                 .ReturnsAsync(new LeaseStoreResult(lease, true));
 
             _mockSlottedInterval.Setup(m => m.Calculate(It.IsAny<DateTime>(), It.IsAny<TimeSpan>()))
                 .Returns(TimeSpan.FromMinutes(2));
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(Guid.NewGuid());
+            var result = await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value);
 
             // Assert
-            result.Should().NotBeNull();
-            result.Priority.Should().Be(_options.Priority);
-            result.LeasedUntil.Should().NotBeNull();
-            result.LeasedUntil.GetValueOrDefault().Should().Be(currentDateTime.Add(_options.LeaseInterval));
+            result.Should().Be(lease);
             _mockAllocationDelay.Verify(m => m.Calculate(It.Is<int>(i => i == _options.Priority),
                 It.Is<TimeSpan>(t => t == _options.LeaseInterval)));
+            _mockStore.Verify(m => m.TryCreateLeaseAsync(It.IsAny<ILease>()), Times.Never);
+            _mockStore.Verify(m => m.SelectWinnerRequestAsync(lease.LeaseType), Times.Once);
+            _mockStore.Verify(m => m.TryUpdateLeaseAsync(lease), Times.Once);
         }
 
         [Fact, IsUnit]
@@ -155,43 +155,49 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             ILease lease = new TestLease
             {
-                Priority = 0
+                InstanceId = Guid.NewGuid(),
+                LeasedUntil = currentDateTime.Subtract(new TimeSpan(1, 0, 0)),
+                Priority = _options.Priority + 1,
+                Interval = TimeSpan.FromMinutes(2),
+                LeaseType = _options.WorkerType
             };
 
             _mockStore.Setup(m => m.ReadByLeaseTypeAsync(It.IsAny<string>())).ReturnsAsync((TestLease) null);
 
             _mockStore.Setup(m =>
-                    m.TryCreateLeaseAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<Guid>()))
+                    m.TryCreateLeaseAsync(It.IsAny<ILease>()))
                 .ReturnsAsync(new LeaseStoreResult(lease, true));
 
-            _mockStore.SetupSequence(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
-                .ReturnsAsync(new LeaseStoreResult(lease, true))
-                .ReturnsAsync(new LeaseStoreResult(lease, true));
+            _mockStore.Setup(m =>
+                    m.SelectWinnerRequestAsync(lease.LeaseType))
+                .ReturnsAsync(lease.InstanceId);
 
             _mockSlottedInterval.Setup(m => m.Calculate(It.IsAny<DateTime>(), It.IsAny<TimeSpan>()))
                 .Returns(TimeSpan.FromMinutes(2));
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(Guid.NewGuid());
+            var result = await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value);
 
-            // Assert
-            result.Should().NotBeNull();
-            result.Priority.Should().Be(_options.Priority);
-            result.LeasedUntil.Should().NotBeNull();
-            result.LeasedUntil.GetValueOrDefault().Should().Be(currentDateTime.Add(_options.LeaseInterval));
+            //Assert
+            result.Should().Be(lease);
             _mockAllocationDelay.Verify(m => m.Calculate(It.Is<int>(i => i == _options.Priority),
                 It.Is<TimeSpan>(t => t == _options.LeaseInterval)));
+            _mockStore.Verify(m => m.TryCreateLeaseAsync(It.Is<ILease>(l => l.InstanceId == result.InstanceId && l.LeaseType == result.LeaseType)), Times.Once);
+            _mockStore.Verify(m => m.SelectWinnerRequestAsync(lease.LeaseType), Times.Once);
+            _mockStore.Verify(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()), Times.Never);
+            
         }
 
         [Fact, IsUnit]
-        public async Task TestAllocateLeaseAsyncLeaseCreateSecondWorkerLeaseCreated()
+        public async Task TestAllocateLeaseAsyncLeaseCreateHigherPrioritySecondWorkerLeaseCreated()
         {
             // Arrange
             DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
             ServerDateTime.UtcNowFunc = () => currentDateTime;
+            var instanceId = Guid.NewGuid();
 
             _mockStore.Setup(m =>
-                    m.TryCreateLeaseAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<Guid>()))
+                    m.TryCreateLeaseAsync(It.IsAny<ILease>()))
                 .ReturnsAsync(new LeaseStoreResult(null, false));
 
             _mockStore.SetupSequence(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()))
@@ -199,15 +205,71 @@ namespace EShopworld.WorkerProcess.UnitTests
                 .ReturnsAsync(new TestLease
                 {
                     LeasedUntil = currentDateTime.Add(_options.LeaseInterval),
-                    Priority = 2
+                    Priority = 0
                 });
 
+            _mockStore.Setup(m =>
+                    m.SelectWinnerRequestAsync(It.IsAny<string>()))
+                .ReturnsAsync(instanceId);
+
+
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(Guid.NewGuid());
+            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId);
 
             // Assert
             result.Should().BeNull();
+            _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Exactly(2));
+            _mockStore.Verify(m => m.TryCreateLeaseAsync(It.Is<ILease>(l => l.InstanceId == instanceId)), Times.Once);
+            _mockStore.Verify(m => m.SelectWinnerRequestAsync(It.IsAny<string>()), Times.Once);
+            _mockStore.Verify(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()), Times.Never);
         }
+
+        [Fact, IsUnit]
+        public async Task TestAllocateLeaseAsyncLeaseCreateLowerPrioritySecondWorkerLeaseCreated()
+        {
+            // Arrange
+            DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
+            ServerDateTime.UtcNowFunc = () => currentDateTime;
+            var instanceId = Guid.NewGuid();
+            var lease = new TestLease
+            {
+                LeasedUntil = currentDateTime.Add(_options.LeaseInterval),
+                Priority = _options.Priority,
+                InstanceId = instanceId
+            };
+
+            _mockStore.Setup(m =>
+                    m.TryCreateLeaseAsync(It.IsAny<ILease>()))
+                .ReturnsAsync(new LeaseStoreResult(null, false));
+
+            _mockStore.Setup(m =>
+                    m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
+                .ReturnsAsync(new LeaseStoreResult(lease, true));
+
+            _mockStore.SetupSequence(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()))
+                .ReturnsAsync((ILease)null)
+                .ReturnsAsync(new TestLease
+                {
+                    LeasedUntil = currentDateTime.Add(_options.LeaseInterval),
+                    Priority = 2
+                });
+
+            _mockStore.Setup(m =>
+                    m.SelectWinnerRequestAsync(It.IsAny<string>()))
+                .ReturnsAsync(instanceId);
+
+
+            // Act
+            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId);
+
+            // Assert
+            result.Should().Be(lease);
+            _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Exactly(2));
+            _mockStore.Verify(m => m.TryCreateLeaseAsync(It.Is<ILease>(l => l.InstanceId == instanceId)), Times.Once);
+            _mockStore.Verify(m => m.SelectWinnerRequestAsync(It.IsAny<string>()), Times.Once);
+            _mockStore.Verify(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()), Times.Once);
+        }
+
 
         [Fact, IsUnit]
         public async Task TestAllocateLeaseAsyncLeaseAcquireFailed()
@@ -218,7 +280,9 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             ILease lease = new TestLease
             {
-                Priority = 0
+                Priority = _options.Priority,
+                LeaseType = _options.WorkerType,
+                InstanceId = Guid.NewGuid()
             };
 
             _mockStore.SetupSequence(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()))
@@ -227,23 +291,27 @@ namespace EShopworld.WorkerProcess.UnitTests
                 .ReturnsAsync(lease);
 
             _mockStore.Setup(m => m.TryCreateLeaseAsync(
-                    It.Is<string>(s => s == _options.WorkerType),
-                    It.Is<int>(i => i == _options.Priority),
-                    It.IsAny<Guid>()))
+                    It.Is<ILease>(l => l.LeaseType == _options.WorkerType && l.Priority==_options.Priority && l.InstanceId== lease.InstanceId)))
                 .ReturnsAsync(new LeaseStoreResult(null, false));
 
-            _mockStore.SetupSequence(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
-                .ReturnsAsync(new LeaseStoreResult(null, false));
+            _mockStore.Setup(m =>
+                    m.SelectWinnerRequestAsync(It.IsAny<string>()))
+                .ReturnsAsync(lease.InstanceId);
+
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(Guid.NewGuid());
+            var result = await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value);
 
             // Assert
             result.Should().BeNull();
+            _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Exactly(2));
+            _mockStore.Verify(m => m.TryCreateLeaseAsync(It.Is<ILease>(l => l.LeaseType == _options.WorkerType && l.Priority == _options.Priority && l.InstanceId == lease.InstanceId)), Times.Once);
+            _mockStore.Verify(m => m.SelectWinnerRequestAsync(It.IsAny<string>()), Times.Once);
+            _mockStore.Verify(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()), Times.Never);
         }
 
         [Fact, IsUnit]
-        public async Task TestAllocateLeaseAsyncLeaseActivationFailed()
+        public async Task TestAllocateLeaseAsyncLeaseUpdateFailed()
         {
             // Arrange
             DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
@@ -251,30 +319,65 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             ILease lease = new TestLease
             {
-                Priority = 0
+                Priority = _options.Priority,
+                LeaseType = _options.WorkerType,
+                InstanceId = Guid.NewGuid()
             };
 
-            _mockStore.SetupSequence(m => m.ReadByLeaseTypeAsync(It.Is<string>(s => s == _options.WorkerType)))
-                .ReturnsAsync((ILease) null)
+            _mockStore.SetupSequence(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()))
                 .ReturnsAsync(lease)
                 .ReturnsAsync(lease);
 
-            _mockStore.Setup(m => m.TryCreateLeaseAsync(
-                    It.Is<string>(s => s == _options.WorkerType),
-                    It.Is<int>(i => i == _options.Priority),
-                    It.IsAny<Guid>()))
-                .ReturnsAsync(new LeaseStoreResult(null, false));
+            _mockStore.Setup(m =>
+                    m.SelectWinnerRequestAsync(It.IsAny<string>()))
+                .ReturnsAsync(lease.InstanceId);
 
-            _mockStore.SetupSequence(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
-                .ReturnsAsync(new LeaseStoreResult(lease, true))
+
+            _mockStore.Setup(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
                 .ReturnsAsync(new LeaseStoreResult(null, false));
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(Guid.NewGuid());
+            var result = await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value);
 
             // Assert
             result.Should().BeNull();
+            _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Exactly(2));
+            _mockStore.Verify(m => m.TryUpdateLeaseAsync(It.Is<ILease>(l => l.LeaseType == _options.WorkerType && l.Priority == _options.Priority && l.InstanceId == lease.InstanceId)), Times.Once);
+            _mockStore.Verify(m => m.SelectWinnerRequestAsync(It.IsAny<string>()), Times.Once);
+            _mockStore.Verify(m => m.TryCreateLeaseAsync(It.IsAny<ILease>()), Times.Never);
         }
+
+        [Fact, IsUnit]
+        public async Task TestAllocateLeaseAsyncFailsAfterLosingElection()
+        {
+            // Arrange
+            DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
+            ServerDateTime.UtcNowFunc = () => currentDateTime;
+            var instanceId = Guid.NewGuid();
+
+            _mockStore.Setup(m =>
+                    m.TryCreateLeaseAsync(It.IsAny<ILease>()))
+                .ReturnsAsync(new LeaseStoreResult(null, false));
+
+            _mockStore.SetupSequence(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()))
+                .ReturnsAsync((ILease) null);
+
+            _mockStore.Setup(m =>
+                    m.SelectWinnerRequestAsync(It.IsAny<string>()))
+                .ReturnsAsync(Guid.Empty);
+
+
+            // Act
+            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId);
+
+            // Assert
+            result.Should().BeNull();
+            _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Once);
+            _mockStore.Verify(m => m.TryCreateLeaseAsync(It.IsAny<ILease>()), Times.Never);
+            _mockStore.Verify(m => m.SelectWinnerRequestAsync(It.IsAny<string>()), Times.Once);
+            _mockStore.Verify(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()), Times.Never);
+        }
+
 
         [Fact, IsUnit]
         public async Task TestReleaseLeaseAsyncUpdateFailed()
