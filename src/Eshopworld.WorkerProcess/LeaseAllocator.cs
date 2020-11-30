@@ -92,8 +92,14 @@ namespace EShopworld.WorkerProcess
             lease.Interval = _slottedInterval.Calculate(updateTime, _options.Value.LeaseInterval);
             lease.LeasedUntil = updateTime.Add(lease.Interval.Value);
             var updateResult = await TryAcquireLease(lease, instanceId, _leaseStore.TryUpdateLeaseAsync).ConfigureAwait(false);
-
-            return updateResult.Lease;
+            if (updateResult.Result || updateResult.Lease == null)
+            {
+                return updateResult.Lease;
+            }
+            _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                _options.Value.Priority,
+                $"Lease failed to be acquired on update. {GenerateLeaseInfo(updateResult.Lease)}"));
+            return null;
            
         }
 
