@@ -11,6 +11,7 @@ using Eshopworld.Tests.Core;
 using EShopworld.WorkerProcess.Configuration;
 using EShopworld.WorkerProcess.Stores;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.Documents.Linq;
@@ -34,7 +35,8 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
 
             _options = new CosmosDataStoreOptions
             {
-                LeasesCollection = "collection",
+                LeasesCollection = "collection1",
+                RequestsCollection = "collection2",
                 Database = "database"
             };
 
@@ -44,6 +46,51 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
 
         public interface IMockDocumentQuery<T> : IDocumentQuery<T>, IOrderedQueryable<T>
         {
+        }
+        
+        [Fact, IsUnit]
+        public async Task InitialiseAsync_CreateDatabaseAndCreateCollectionIsCalled()
+        {
+            // Act
+            await _store.InitialiseAsync();
+
+            // Assert
+            using (new AssertionScope())
+            {
+                _mockDocumentClient.Verify(
+                client => client.CreateDatabaseIfNotExistsAsync(
+                    It.Is<Database>(db => db.Id.Equals(_options.Database)),
+                    null),
+                Times.Once);
+
+            _mockDocumentClient.Verify(
+                client => client.CreateDocumentCollectionIfNotExistsAsync(
+                    It.IsAny<Uri>(),
+                    It.Is<DocumentCollection>(col => col.Id.Equals(_options.LeasesCollection)),
+                    It.IsAny<RequestOptions>()), Times.Once);
+
+            _mockDocumentClient.Verify(
+                client => client.CreateDocumentCollectionIfNotExistsAsync(
+                    It.IsAny<Uri>(),
+                    It.Is<DocumentCollection>(col => col.Id.Equals(_options.RequestsCollection)),
+                    It.IsAny<RequestOptions>()), Times.Once);
+            }
+        }
+
+        [Fact, IsUnit]
+        public async Task InitialiseAsync_LeasesCollectionIsCreatedWithConstraintsAndPartition()
+        {
+            // Act
+            await _store.InitialiseAsync();
+
+            // Assert
+            _mockDocumentClient.Verify(
+                client => client.CreateDocumentCollectionIfNotExistsAsync(
+                    It.IsAny<Uri>(),
+                    It.Is<DocumentCollection>(collection =>
+                        collection.Id.Equals(_options.LeasesCollection) &&
+                        collection.UniqueKeyPolicy.UniqueKeys.Count == 1 && collection.PartitionKey.Paths.Count == 1),
+                    It.IsAny<RequestOptions>()), Times.Once);
         }
 
         [Fact, IsUnit]
