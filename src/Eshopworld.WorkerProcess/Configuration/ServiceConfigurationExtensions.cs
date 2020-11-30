@@ -23,8 +23,6 @@ namespace EShopworld.WorkerProcess.Configuration
             if (options.CurrentValue == null)
                 throw new WorkerLeaseException($"[{typeof(IOptionsMonitor<WorkerLeaseOptions>)}] was not configured");
 
-            services.TryAddSingleton<IAllocationDelay, ProportionalAllocationDelay>();
-
             services.TryAddSingleton<ISlottedInterval, SlottedInterval>();
 
             services.TryAddSingleton<ILeaseAllocator, LeaseAllocator>();

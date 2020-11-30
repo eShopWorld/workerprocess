@@ -117,10 +117,17 @@ namespace EShopworld.WorkerProcess.Stores
             {
                 try
                 {
-                    
+                    var cosmosDbLease = new CosmosDbLease
+                    {
+                        InstanceId = lease.InstanceId,
+                        Interval = lease.Interval,
+                        LeasedUntil = lease.LeasedUntil,
+                        Priority = lease.Priority,
+                        LeaseType = lease.LeaseType
+                    };
                     var response = await _documentClient.CreateDocumentAsync(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.Collection),
-                        lease,
+                        cosmosDbLease,
                         new RequestOptions
                         {
                             ConsistencyLevel = _options.Value.ConsistencyLevel
