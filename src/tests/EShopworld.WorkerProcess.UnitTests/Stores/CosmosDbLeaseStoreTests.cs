@@ -34,7 +34,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
 
             _options = new CosmosDataStoreOptions
             {
-                Collection = "collection",
+                LeasesCollection = "collection",
                 Database = "database"
             };
 
@@ -135,7 +135,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 .Returns(() => dataSource.GetEnumerator());
 
             _mockDocumentClient.Setup(m => m.CreateDocumentQuery<CosmosDbLease>(
-                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.Collection)),
+                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.LeasesCollection)),
                 It.IsAny<FeedOptions>())).Returns(mockDocumentQuery.Object);
 
             // Act
@@ -153,7 +153,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
             _store.ResourceMappingFunc = response => new CosmosDbLease();
 
             _mockDocumentClient.Setup(m => m.CreateDocumentAsync(
-                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.Collection)),
+                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.LeasesCollection)),
                 It.IsAny<object>(),
                 It.IsAny<RequestOptions>(),
                 It.IsAny<bool>(),
@@ -178,7 +178,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
 
             _mockDocumentClient.Setup(m => m.CreateDocumentAsync(
                     It.Is<Uri>(u =>
-                        u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.Collection)),
+                        u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.LeasesCollection)),
                     It.IsAny<object>(),
                     It.IsAny<RequestOptions>(),
                     It.IsAny<bool>(),
