@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Fabric;
 using System.Threading.Tasks;
 using Eshopworld.Core;
 using EShopworld.WorkerProcess.Configuration;
