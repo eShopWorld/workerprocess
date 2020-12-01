@@ -39,7 +39,13 @@ namespace EShopworld.WorkerProcess
             if (lease?.LeasedUntil != null && lease.LeasedUntil.Value > ServerDateTime.UtcNow)
                 return null;
             
-            await _leaseStore.AddLeaseRequestAsync(_options.Value.WorkerType,_options.Value.Priority,instanceId).ConfigureAwait(false);
+            await _leaseStore.AddLeaseRequestAsync(new LeaseRequest
+            {
+                LeaseType = _options.Value.WorkerType, 
+                Priority = _options.Value.Priority,
+                InstanceId = instanceId,
+                TimeToLive = 2 * _options.Value.ElectionDelay.Seconds
+            }).ConfigureAwait(false);
 
             // backoff to allow other workers to add their lease request
             await Task.Delay(_options.Value.ElectionDelay);

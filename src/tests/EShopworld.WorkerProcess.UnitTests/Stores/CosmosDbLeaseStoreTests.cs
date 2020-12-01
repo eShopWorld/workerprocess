@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Eshopworld.Core;
 using Eshopworld.Tests.Core;
 using EShopworld.WorkerProcess.Configuration;
+using EShopworld.WorkerProcess.Model;
 using EShopworld.WorkerProcess.Stores;
 using FluentAssertions;
 using FluentAssertions.Execution;
@@ -265,13 +266,21 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
 
             // Act
             var instanceId = Guid.NewGuid();
-            var result = await _store.AddLeaseRequestAsync("test", 1, instanceId);
+            var leaseRequest = new LeaseRequest
+            {
+                LeaseType = "test",
+                Priority = 1,
+                InstanceId = instanceId,
+                TimeToLive = 30
+            };
+            var result = await _store.AddLeaseRequestAsync(leaseRequest);
 
             // Assert
             result.Should().BeTrue();
             _mockDocumentClient.Verify(m => m.CreateDocumentAsync(
                 It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
-              It.Is<CosmoDbLeaseRequest>(req=>req.TimeToLive==_options.LeaseRequestTimeToLive && req.Priority==1 && req.InstanceId==instanceId && req.LeaseType=="test"),
+              It.Is<CosmoDbLeaseRequest>(req=>req.TimeToLive== leaseRequest.TimeToLive && req.Priority==leaseRequest.Priority
+                                                                                       && req.InstanceId==leaseRequest.InstanceId && req.LeaseType==leaseRequest.LeaseType),
                 It.IsAny<RequestOptions>(),
                 It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()),Times.Once);
@@ -294,13 +303,21 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
 
             // Act
             var instanceId = Guid.NewGuid();
-            var result = await _store.AddLeaseRequestAsync("test", 1, instanceId);
+            var leaseRequest = new LeaseRequest
+            {
+                LeaseType = "test",
+                Priority = 1,
+                InstanceId = instanceId,
+                TimeToLive = 30
+            };
+            var result = await _store.AddLeaseRequestAsync(leaseRequest);
 
             // Assert
             result.Should().BeFalse();
             _mockDocumentClient.Verify(m => m.CreateDocumentAsync(
                 It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
-                It.Is<CosmoDbLeaseRequest>(req => req.TimeToLive == _options.LeaseRequestTimeToLive && req.Priority == 1 && req.InstanceId == instanceId && req.LeaseType == "test"),
+                It.Is<CosmoDbLeaseRequest>(req => req.TimeToLive == leaseRequest.TimeToLive && req.Priority == leaseRequest.Priority
+                                                                                            && req.InstanceId == leaseRequest.InstanceId && req.LeaseType == leaseRequest.LeaseType),
                 It.IsAny<RequestOptions>(),
                 It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()), Times.Once);
@@ -310,7 +327,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         }
 
         [Fact, IsUnit]
-        public async Task SelectWinnerRequestAsync_WhenMultipleRequests_ShouldReturnTheOneWithHighestPriority()
+        public async Task SelectWinnerRequestAsync_WhenQueryHasResults_ShouldReturnInstanceId()
         {
             // Arrange
             var winnerLeaseRequest = new CosmoDbLeaseRequest
@@ -320,32 +337,50 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 LeaseType = "leasetype",
                 Priority = 0
             };
-            var dataSource = new List<CosmoDbLeaseRequest>
-            {
-                new CosmoDbLeaseRequest
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    InstanceId = Guid.NewGuid(),
-                    LeaseType = "leasetype",
-                    Priority = 1
-                },
-                winnerLeaseRequest
-            }.AsQueryable();
-
-            Expression<Func<CosmoDbLeaseRequest, bool>> predicate = t => t.Id == winnerLeaseRequest.Id;
-            var expected = dataSource.AsEnumerable().Where(predicate.Compile());
-            var response = new FeedResponse<CosmoDbLeaseRequest>(expected);
+           
+            var response = new FeedResponse<CosmoDbLeaseRequest>(new []{winnerLeaseRequest});
 
             var mockDocumentQuery = new Mock<IMockDocumentQuery<CosmoDbLeaseRequest>>();
 
             mockDocumentQuery
-                .SetupSequence(m => m.HasMoreResults)
-                .Returns(true)
-                .Returns(false);
+                .Setup(m => m.HasMoreResults)
+                .Returns(true);
 
             mockDocumentQuery
                 .Setup(_ => _.ExecuteNextAsync<CosmoDbLeaseRequest>(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(response);
+                .ReturnsAsync(response).Verifiable();
+
+            var provider = new Mock<IQueryProvider>();
+            provider
+                .Setup(_ => _.CreateQuery<CosmoDbLeaseRequest>(It.IsAny<Expression>()))
+                .Returns(mockDocumentQuery.Object);
+         
+            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.Provider).Returns(provider.Object);
+            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.Expression).Returns(new CosmoDbLeaseRequest[] { }.AsQueryable().Expression);
+            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.ElementType).Returns(typeof(CosmoDbLeaseRequest));
+          
+            _mockDocumentClient.Setup(m => m.CreateDocumentQuery<CosmoDbLeaseRequest>(
+                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
+                It.IsAny<FeedOptions>())).Returns(mockDocumentQuery.Object);
+            
+
+            // Act
+            var result = await _store.SelectWinnerRequestAsync("leasetype");
+
+            // Assert
+            result.Should().Be(winnerLeaseRequest.InstanceId);
+            mockDocumentQuery.Verify();
+        }
+
+        [Fact, IsUnit]
+        public async Task SelectWinnerRequestAsync_WhenQueryHasNoResult_ShouldReturnNull()
+        {
+            // Arrange
+            var mockDocumentQuery = new Mock<IMockDocumentQuery<CosmoDbLeaseRequest>>();
+
+            mockDocumentQuery
+                .Setup(m => m.HasMoreResults)
+                .Returns(false);
 
             var provider = new Mock<IQueryProvider>();
             provider
@@ -353,20 +388,21 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 .Returns(mockDocumentQuery.Object);
 
             mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.Provider).Returns(provider.Object);
-            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.Expression).Returns(dataSource.Expression);
-            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.ElementType).Returns(dataSource.ElementType);
-            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.GetEnumerator())
-                .Returns(() => dataSource.GetEnumerator());
+            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.Expression).Returns(new CosmoDbLeaseRequest[] { }.AsQueryable().Expression);
+            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.ElementType).Returns(typeof(CosmoDbLeaseRequest));
 
             _mockDocumentClient.Setup(m => m.CreateDocumentQuery<CosmoDbLeaseRequest>(
                 It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
                 It.IsAny<FeedOptions>())).Returns(mockDocumentQuery.Object);
 
+
             // Act
             var result = await _store.SelectWinnerRequestAsync("leasetype");
 
             // Assert
-            result.Should().Be(winnerLeaseRequest.InstanceId);
+            result.Should().BeNull();
+            mockDocumentQuery
+                .Verify(_ => _.ExecuteNextAsync<CosmoDbLeaseRequest>(It.IsAny<CancellationToken>()),Times.Never);
         }
 
         private static DocumentClientException CreateDocumentClientExceptionForTesting(

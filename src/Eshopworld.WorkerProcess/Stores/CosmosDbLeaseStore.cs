@@ -6,9 +6,11 @@ using System.Net;
 using System.Threading.Tasks;
 using Eshopworld.Core;
 using EShopworld.WorkerProcess.Configuration;
+using EShopworld.WorkerProcess.Model;
 using EShopworld.WorkerProcess.Telemetry;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Documents.Linq;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
@@ -89,7 +91,7 @@ namespace EShopworld.WorkerProcess.Stores
             collectionDefinition.IndexingPolicy.CompositeIndexes.Add(sortingIndex);
 
             collectionDefinition.PartitionKey.Paths.Add("/leaseType");
-            collectionDefinition.DefaultTimeToLive = 30;
+            collectionDefinition.DefaultTimeToLive = -1;
 
             await _documentClient.CreateDocumentCollectionIfNotExistsAsync(
                 UriFactory.CreateDatabaseUri(_options.Value.Database),
@@ -191,14 +193,14 @@ namespace EShopworld.WorkerProcess.Stores
         }
 
         /// <inheritdoc />
-        public async Task<bool> AddLeaseRequestAsync(string leaseType, int priority, Guid instanceId)
+        public async Task<bool> AddLeaseRequestAsync(LeaseRequest leaseRequest)
         {
-            var leaseRequest = new CosmoDbLeaseRequest
+            var cosmosDbLeaseRequest = new CosmoDbLeaseRequest
             {
-                InstanceId = instanceId,
-                Priority = priority,
-                LeaseType = leaseType,
-                TimeToLive = _options.Value.LeaseRequestTimeToLive
+                InstanceId = leaseRequest.InstanceId,
+                Priority = leaseRequest.Priority,
+                LeaseType = leaseRequest.LeaseType,
+                TimeToLive = leaseRequest.TimeToLive
             };
             return await _retryPolicy.ExecuteAsync(async () =>
             {
@@ -206,10 +208,9 @@ namespace EShopworld.WorkerProcess.Stores
                 {
                     var response = await _documentClient.CreateDocumentAsync(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.RequestsCollection),
-                        leaseRequest,
+                        cosmosDbLeaseRequest,
                         new RequestOptions
                         {
-
                             ConsistencyLevel = _options.Value.ConsistencyLevel,
                         }).ConfigureAwait(false);
 
@@ -231,9 +232,7 @@ namespace EShopworld.WorkerProcess.Stores
         public async Task<Guid?> SelectWinnerRequestAsync(string workerType)
         {
 
-#pragma warning disable 1998
-            // There is no async document query
-            return await _retryPolicy.ExecuteAsync(async () =>
+            return await _retryPolicy.ExecuteAsync<Guid?>(async () =>
             {
                 try
                 {
@@ -241,16 +240,15 @@ namespace EShopworld.WorkerProcess.Stores
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.RequestsCollection),
                         new FeedOptions
                         {
-                            ConsistencyLevel = _options.Value.ConsistencyLevel,
-                            EnableCrossPartitionQuery = true
-                        });
-                        
-                   var result=query.Where(so => so.LeaseType == workerType)
+                            ConsistencyLevel = _options.Value.ConsistencyLevel
+                        })
+                        .Where(so => so.LeaseType == workerType)
                         .OrderBy(req => req.Priority)
-                        .ThenBy(req => req.Timestamp)
-                        .AsEnumerable()
-                        .FirstOrDefault();
-                    return result?.InstanceId;
+                        .ThenBy(req => req.Timestamp).Take(1).AsDocumentQuery();
+                    if (!query.HasMoreResults) return null;
+                    var result = await query.ExecuteNextAsync<CosmoDbLeaseRequest>();
+                    return result.Single().InstanceId;
+
                 }
                 catch (Exception e)
                 {
@@ -260,7 +258,6 @@ namespace EShopworld.WorkerProcess.Stores
 
 
             }).ConfigureAwait(false);
-#pragma warning disable 1998
         }
 
 

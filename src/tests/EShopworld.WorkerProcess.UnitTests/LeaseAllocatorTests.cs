@@ -60,7 +60,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             // Assert
             result.Should().BeNull();
             _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Once);
-            _mockStore.Verify(m => m.AddLeaseRequestAsync(It.IsAny<string>(), _options.Priority, It.IsAny<Guid>()), Times.Never);
+            _mockStore.Verify(m => m.AddLeaseRequestAsync(It.IsAny<LeaseRequest>()), Times.Never);
             _mockStore.Verify(m => m.SelectWinnerRequestAsync(It.IsAny<string>()), Times.Never);
         }
 
@@ -80,15 +80,17 @@ namespace EShopworld.WorkerProcess.UnitTests
                 Priority = _options.Priority + 1,
                 LeaseType = _options.WorkerType
             };
-
             _mockStore.Setup(m => m.ReadByLeaseTypeAsync(It.IsAny<string>())).ReturnsAsync(lease);
 
             // Act
+
             await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value);
 
             // Assert
             _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Once);
-            _mockStore.Verify(m => m.AddLeaseRequestAsync(lease.LeaseType, _options.Priority, lease.InstanceId.Value), Times.Once);
+            _mockStore.Verify(m => m.AddLeaseRequestAsync(It.Is<LeaseRequest>(req=>req.LeaseType==lease.LeaseType
+                                                                                   && req.Priority==_options.Priority && req.InstanceId==lease.InstanceId.Value 
+                                                                                   && req.TimeToLive==2*_options.ElectionDelay.Seconds)), Times.Once);
             _mockStore.Verify(m => m.SelectWinnerRequestAsync(lease.LeaseType), Times.Once);
         }
 
