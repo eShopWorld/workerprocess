@@ -177,11 +177,10 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
                 var telemetry = _serviceProvider.GetService<IBigBrother>();
                 var leaseStore = _serviceProvider.GetService<ILeaseStore>();
-                var propAllocDelay = _serviceProvider.GetService<IAllocationDelay>();
                 var slottedInterval = _serviceProvider.GetService<ISlottedInterval>();
                 var timer = _serviceProvider.GetService<ITimer>();
 
-                var leaseAllocator = new LeaseAllocator(telemetry, leaseStore, slottedInterval, propAllocDelay, options);
+                var leaseAllocator = new LeaseAllocator(telemetry, leaseStore, slottedInterval, options);
 
                 var workerLease = new WorkerLease(telemetry, leaseAllocator, timer, slottedInterval, options);
 

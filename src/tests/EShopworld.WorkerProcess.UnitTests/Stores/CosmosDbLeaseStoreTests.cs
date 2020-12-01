@@ -208,7 +208,12 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 .ReturnsAsync(new Document().ToResourceResponse(HttpStatusCode.Created));
 
             // Act
-            var result = await _store.TryCreateLeaseAsync("worktype", 1, Guid.NewGuid());
+            var result = await _store.TryCreateLeaseAsync(new CosmosDbLease
+            {
+                LeaseType = "worktype",
+                Priority = 1,
+                InstanceId = Guid.NewGuid()
+            });
 
             // Assert
             result.Should().NotBeNull();
@@ -233,7 +238,12 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 .ThrowsAsync(CreateDocumentClientExceptionForTesting(new Error(), HttpStatusCode.Conflict));
 
             // Act
-            var result = await _store.TryCreateLeaseAsync("worktype", 1, Guid.NewGuid());
+            var result = await _store.TryCreateLeaseAsync(new CosmosDbLease
+            {
+                LeaseType = "worktype",
+                Priority = 1,
+                InstanceId = Guid.NewGuid()
+            });
 
             // Assert
             result.Should().NotBeNull();
