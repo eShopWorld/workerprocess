@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
@@ -38,14 +39,21 @@ namespace EShopworld.WorkerProcess.Stores
         public async Task InitialiseAsync()
         {
             await _documentClient.CreateDatabaseIfNotExistsAsync(new Database {Id = _options.Value.Database})
-                .ConfigureAwait(false);
-
+                    .ConfigureAwait(false);
+            
             DocumentCollection collectionDefinition = new DocumentCollection
             {
                 Id = _options.Value.Collection
             };
 
             collectionDefinition.PartitionKey.Paths.Add("/leaseType");
+
+            var leaseConstraint = new UniqueKey
+            {
+                Paths = new Collection<string> { "/leaseType" }
+            };
+
+            collectionDefinition.UniqueKeyPolicy.UniqueKeys.Add(leaseConstraint);
 
             await _documentClient.CreateDocumentCollectionIfNotExistsAsync(
                 UriFactory.CreateDatabaseUri(_options.Value.Database),
@@ -111,22 +119,23 @@ namespace EShopworld.WorkerProcess.Stores
         }
 
         /// <inheritdoc />
-        public async Task<LeaseStoreResult> TryCreateLeaseAsync(string leaseType, int priority, Guid instanceId)
+        public async Task<LeaseStoreResult> TryCreateLeaseAsync(ILease lease)
         {
             return await _retryPolicy.ExecuteAsync(async () =>
             {
                 try
                 {
-                    var lease = new CosmosDbLease
+                    var cosmosDbLease = new CosmosDbLease
                     {
-                        Priority = priority,
-                        InstanceId = instanceId,
-                        LeaseType = leaseType
+                        InstanceId = lease.InstanceId,
+                        Interval = lease.Interval,
+                        LeasedUntil = lease.LeasedUntil,
+                        Priority = lease.Priority,
+                        LeaseType = lease.LeaseType
                     };
-
                     var response = await _documentClient.CreateDocumentAsync(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.Collection),
-                        lease,
+                        cosmosDbLease,
                         new RequestOptions
                         {
                             ConsistencyLevel = _options.Value.ConsistencyLevel
@@ -145,12 +154,23 @@ namespace EShopworld.WorkerProcess.Stores
             }).ConfigureAwait(false);
         }
 
+        public async Task<bool> AddLeaseRequestAsync(string leaseType, int priority, Guid instanceId)
+        {
+            return await Task.FromResult(true);
+        }
+
+        public async Task<Guid?> SelectWinnerRequestAsync(string workerType)
+        {
+            return await Task.FromResult(Guid.Empty);
+        }
+
+
         private AsyncRetryPolicy CreateRetryPolicy()
         {
             return Policy
                 .Handle<DocumentClientException>(e => e.RetryAfter > TimeSpan.Zero)
                 .WaitAndRetryForeverAsync(
-                    (count, exception, context) => ((DocumentClientException) exception).RetryAfter,
+                    (count, exception, context) => ((DocumentClientException)exception).RetryAfter,
                     (exception, count, timeSpan, context) =>
                     {
                         _telemetry.Publish(new CosmosRetryEvent(timeSpan, count));
@@ -162,7 +182,9 @@ namespace EShopworld.WorkerProcess.Stores
         [ExcludeFromCodeCoverage]
         private ILease MapResource(ResourceResponse<Document> response)
         {
-            return (CosmosDbLease) (dynamic) response.Resource;
+            return (CosmosDbLease)(dynamic)response.Resource;
         }
+
+        
     }
 }

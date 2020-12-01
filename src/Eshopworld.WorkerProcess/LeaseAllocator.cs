@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Eshopworld.Core;
 using EShopworld.WorkerProcess.Configuration;
 using EShopworld.WorkerProcess.Infrastructure;
+using EShopworld.WorkerProcess.Model;
 using EShopworld.WorkerProcess.Stores;
 using EShopworld.WorkerProcess.Telemetry;
 using Microsoft.Extensions.Options;
@@ -12,7 +13,6 @@ namespace EShopworld.WorkerProcess
     public class LeaseAllocator : ILeaseAllocator
     {
         private readonly IOptions<WorkerLeaseOptions> _options;
-        private readonly IAllocationDelay _allocationDelay;
         private readonly ILeaseStore _leaseStore;
         private readonly ISlottedInterval _slottedInterval;
         private readonly IBigBrother _telemetry;
@@ -21,96 +21,87 @@ namespace EShopworld.WorkerProcess
             IBigBrother telemetry,
             ILeaseStore leaseStore,
             ISlottedInterval slottedInterval,
-            IAllocationDelay allocationDelay,
             IOptions<WorkerLeaseOptions> options)
         {
             _telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
             _leaseStore = leaseStore ?? throw new ArgumentNullException(nameof(leaseStore));
             _slottedInterval = slottedInterval ?? throw new ArgumentNullException(nameof(slottedInterval));
-            _allocationDelay = allocationDelay ?? throw new ArgumentNullException(nameof(allocationDelay));
             _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
         /// <inheritdoc />
         public async Task<ILease> AllocateLeaseAsync(Guid instanceId)
         {
+            _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                _options.Value.Priority, $"Lease allocation started for instance {instanceId}"));
+           
             var lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
+            if (lease?.LeasedUntil != null && lease.LeasedUntil.Value > ServerDateTime.UtcNow)
+                return null;
+            
+            await _leaseStore.AddLeaseRequestAsync(_options.Value.WorkerType,_options.Value.Priority,instanceId).ConfigureAwait(false);
+
+            // backoff to allow other workers to add their lease request
+            await Task.Delay(_options.Value.ElectionDelay);
+
+            _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                _options.Value.Priority, $"Leader election starting"));
+
+            var winnerInstanceId = await _leaseStore.SelectWinnerRequestAsync(_options.Value.WorkerType);
+
+            if (!winnerInstanceId.HasValue)
+            {
+                //This should not happen normally
+                _telemetry.Publish(new WinnerNotExistingEvent(instanceId, _options.Value.WorkerType));
+                return null;
+            }
+
+            if (winnerInstanceId != instanceId)
+            {
+                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                    _options.Value.Priority, $"Lease failed to be acquired after election. Winner instance is {winnerInstanceId.Value}."));
+                return null;
+            }
 
             if (lease == null)
             {
-                var leaseResult = await _leaseStore.TryCreateLeaseAsync(_options.Value.WorkerType,
-                    _options.Value.Priority, instanceId).ConfigureAwait(false);
-
-                if (leaseResult.Result)
+                lease = new Lease
                 {
-                    lease = leaseResult.Lease;
-                }
-                else
-                {
-                    // another worker lease created the lease before this worker read the created lease
-                    lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
-                }
+                    InstanceId = instanceId,
+                    Priority = _options.Value.Priority,
+                    LeaseType = _options.Value.WorkerType
+                };
             }
 
-            // check lease priority is less than current worker priority and lease is not acquired
-            if (lease.Priority <= _options.Value.Priority && lease.LeasedUntil == null ||
-                lease.LeasedUntil.HasValue && lease.LeasedUntil.Value < ServerDateTime.UtcNow)
+            var now = ServerDateTime.UtcNow;
+            lease.Interval = _slottedInterval.Calculate(now, _options.Value.LeaseInterval);
+            lease.LeasedUntil = now.Add(lease.Interval.Value);
+            var persistResult = await TryPersistLease(lease).ConfigureAwait(false);
+            return persistResult.Lease;
+
+        }
+
+        private async Task<LeaseStoreResult> TryPersistLease(ILease lease)
+        {
+            var leaseResult = string.IsNullOrEmpty(lease.Id) 
+                ? await _leaseStore.TryCreateLeaseAsync(lease).ConfigureAwait(false)
+                : await _leaseStore.TryUpdateLeaseAsync(lease).ConfigureAwait(false);
+
+            if (leaseResult.Result)
             {
-                lease.Priority = _options.Value.Priority;
-                lease.InstanceId = instanceId;
-
-                var updateResult = await _leaseStore.TryUpdateLeaseAsync(lease).ConfigureAwait(false);
-
-                if (updateResult.Result)
-                {
-                    lease = updateResult.Lease;
-
-                    // backoff to allow other worker lease instances to update the lease
-                    var delay = _allocationDelay.Calculate(_options.Value.Priority, _options.Value.LeaseInterval);
-
-                    _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
-                        _options.Value.Priority,
-                        $"Lease activation delayed [{delay}]. Allocated Lease Id: [{lease.Id}]"));
-
-                    await Task.Delay(delay).ConfigureAwait(false);
-
-                    // activate
-                    var now = ServerDateTime.UtcNow;
-                    lease.Interval = _slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval);
-                    lease.LeasedUntil = now.Add(lease.Interval.Value);
-
-                    updateResult = await _leaseStore.TryUpdateLeaseAsync(lease).ConfigureAwait(false);
-
-                    if (updateResult.Result)
-                    {
-                        _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
-                            _options.Value.Priority,
-                            $"Lease acquired. {GenerateLeaseInfo(updateResult.Lease)}"));
-
-                        return updateResult.Lease;
-                    }
-
-                    _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
-                        _options.Value.Priority,
-                        $"Lease activation failed lease already acquired. Allocated Lease Id: [{lease.Id}]"));
-                }
-
-                // Read the lease for event
-                lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
-
-                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                _telemetry.Publish(new LeaseAcquisitionEvent(lease.InstanceId.Value, _options.Value.WorkerType,
                     _options.Value.Priority,
-                    $"Lease acquisition failed lease already acquired. {GenerateLeaseInfo(lease)}"));
-            }
-            else
-            {
-                // lease already acquired
-                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
-                    _options.Value.Priority,
-                    $"Lease acquisition failed lease already acquired. {GenerateLeaseInfo(lease)}"));
+                    $"Lease successfully persisted. {GenerateLeaseInfo(leaseResult.Lease)}"));
+                return leaseResult;
             }
 
-            return null;
+            // Read the lease for event
+            lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
+
+            _telemetry.Publish(new LeaseAcquisitionEvent(lease.InstanceId.Value, _options.Value.WorkerType,
+                _options.Value.Priority,
+                $"Lease could not be persisted. Current stored lease is: {GenerateLeaseInfo(lease)}"));
+            return new LeaseStoreResult(null, false);
         }
 
         /// <inheritdoc />

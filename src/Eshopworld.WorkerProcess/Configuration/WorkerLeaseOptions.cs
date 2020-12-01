@@ -36,5 +36,10 @@ namespace EShopworld.WorkerProcess.Configuration
         ///     The amount of time in minutes that the lease interval executes
         /// </summary>
         public TimeSpan LeaseInterval { get; set; } = new TimeSpan(0,5,0);
+        
+        /// <summary>
+        /// Default delay used en lease election process
+        /// </summary>
+        public TimeSpan ElectionDelay { get;  set; } = new TimeSpan(0, 0, 5);
     }
 }

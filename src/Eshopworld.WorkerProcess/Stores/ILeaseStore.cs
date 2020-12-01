@@ -24,10 +24,24 @@ namespace EShopworld.WorkerProcess.Stores
         /// <summary>
         /// Try create an <see cref="ILease"/> instance
         /// </summary>
-        /// <param name="leaseType">The lease type</param>
-        /// <param name="priority">The priority of the lease</param>
-        /// <param name="instanceId">The instance of the worker that acquired the lease</param>
-        /// <returns>The <see cref="LeaseStoreResult"/></returns>
-        Task<LeaseStoreResult> TryCreateLeaseAsync(string leaseType, int priority, Guid instanceId);
+        /// <param name="lease"></param>
+        /// <returns></returns>
+        Task<LeaseStoreResult> TryCreateLeaseAsync(ILease lease);
+
+        /// <summary>
+        /// Add a new LeaseRequest
+        /// </summary>
+        /// <param name="leaseType"></param>
+        /// <param name="priority"></param>
+        /// <param name="instanceId"></param>
+        /// <returns>if request was successful</returns>
+        Task<bool> AddLeaseRequestAsync(string leaseType, int priority, Guid instanceId);
+        
+        /// <summary>
+        /// Return Winner LeaseRequest
+        /// </summary>
+        /// <param name="workerType"></param>
+        /// <returns>winner instance Id</returns>
+        Task<Guid?> SelectWinnerRequestAsync(string workerType);
     }
 }
