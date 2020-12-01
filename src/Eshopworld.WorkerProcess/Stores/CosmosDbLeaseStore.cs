@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
@@ -40,20 +40,56 @@ namespace EShopworld.WorkerProcess.Stores
         {
             await _documentClient.CreateDatabaseIfNotExistsAsync(new Database {Id = _options.Value.Database})
                     .ConfigureAwait(false);
-            
-            DocumentCollection collectionDefinition = new DocumentCollection
+
+            await CreateWorkerLeasesCollection();
+            await CreateLeaseRequestsCollection();
+        }
+
+        private async Task CreateWorkerLeasesCollection()
+        {
+            var collectionDefinition = new DocumentCollection
             {
-                Id = _options.Value.Collection
+                Id = _options.Value.LeasesCollection
             };
 
             collectionDefinition.PartitionKey.Paths.Add("/leaseType");
 
             var leaseConstraint = new UniqueKey
             {
-                Paths = new Collection<string> { "/leaseType" }
+                Paths = new Collection<string> {"/leaseType"}
             };
 
             collectionDefinition.UniqueKeyPolicy.UniqueKeys.Add(leaseConstraint);
+
+            await _documentClient.CreateDocumentCollectionIfNotExistsAsync(
+                UriFactory.CreateDatabaseUri(_options.Value.Database),
+                collectionDefinition,
+                new RequestOptions {OfferThroughput = _options.Value.OfferThroughput}).ConfigureAwait(false);
+        }
+
+        private async Task CreateLeaseRequestsCollection()
+        {
+            var collectionDefinition = new DocumentCollection
+            {
+                Id = _options.Value.RequestsCollection
+            };
+
+            var leaseConstraint = new UniqueKey
+            {
+                Paths = new Collection<string> { "/instanceId", "/leaseType" }
+            };
+
+            var sortingIndex = new Collection<CompositePath>
+            {
+                new CompositePath { Path = "/priority", Order = CompositePathSortOrder.Ascending },
+                new CompositePath { Path = "/_ts", Order = CompositePathSortOrder.Ascending }
+            };
+
+            collectionDefinition.UniqueKeyPolicy.UniqueKeys.Add(leaseConstraint);
+            collectionDefinition.IndexingPolicy.CompositeIndexes.Add(sortingIndex);
+
+            collectionDefinition.PartitionKey.Paths.Add("/leaseType");
+            collectionDefinition.DefaultTimeToLive = 30;
 
             await _documentClient.CreateDocumentCollectionIfNotExistsAsync(
                 UriFactory.CreateDatabaseUri(_options.Value.Database),
@@ -74,7 +110,7 @@ namespace EShopworld.WorkerProcess.Stores
                 try
                 {
                     var response = await _documentClient.ReplaceDocumentAsync(
-                        UriFactory.CreateDocumentUri(_options.Value.Database, _options.Value.Collection,
+                        UriFactory.CreateDocumentUri(_options.Value.Database, _options.Value.LeasesCollection,
                             cosmosLease.Id),
                         cosmosLease,
                         new RequestOptions
@@ -104,8 +140,8 @@ namespace EShopworld.WorkerProcess.Stores
             // There is no async document query
             return await _retryPolicy.ExecuteAsync(async () =>
             {
-                return (ILease) _documentClient.CreateDocumentQuery<CosmosDbLease>(
-                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.Collection),
+                return (ILease)_documentClient.CreateDocumentQuery<CosmosDbLease>(
+                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.LeasesCollection),
                         new FeedOptions
                         {
                             ConsistencyLevel = _options.Value.ConsistencyLevel,
@@ -134,8 +170,8 @@ namespace EShopworld.WorkerProcess.Stores
                         LeaseType = lease.LeaseType
                     };
                     var response = await _documentClient.CreateDocumentAsync(
-                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.Collection),
-                        cosmosDbLease,
+                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.LeasesCollection),
+                        lease,
                         new RequestOptions
                         {
                             ConsistencyLevel = _options.Value.ConsistencyLevel

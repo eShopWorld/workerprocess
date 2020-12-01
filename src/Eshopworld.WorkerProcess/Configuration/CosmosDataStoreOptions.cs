@@ -13,9 +13,14 @@ namespace EShopworld.WorkerProcess.Configuration
         public string Database { get; set; } = "WorkerProcess";
 
         /// <summary>
-        /// The document collection
+        /// The document collection for leases
         /// </summary>
-        public string Collection { get; set; } = "WorkerLeases";
+        public string LeasesCollection { get; set; } = "WorkerLeases";
+        
+        /// <summary>
+        /// The document collection for leases request
+        /// </summary>
+        public string RequestsCollection { get; set; } = "LeaseRequests";
 
         /// <summary>
         /// The consistency level for the store
