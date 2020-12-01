@@ -13,9 +13,10 @@ namespace EShopworld.WorkerProcess.Configuration
         public string Database { get; set; } = "WorkerProcess";
 
         /// <summary>
-        /// The document collection
+        /// The document collection for leases
         /// </summary>
-        public string Collection { get; set; } = "WorkerLeases";
+        public string LeasesCollection { get; set; } = "WorkerLeases";
+        
         /// <summary>
         /// The document collection for leases request
         /// </summary>
@@ -32,8 +33,8 @@ namespace EShopworld.WorkerProcess.Configuration
         public int OfferThroughput { get; set; } = 400;
 
         /// <summary>
-        /// TTL for lease requests
+        /// Lease Requests TTL
         /// </summary>
-        public int LeaseRequestTimeToLive { get; set; } = 30;
+        public int? LeaseRequestTimeToLive { get; set; } = 30;
     }
 }
