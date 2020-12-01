@@ -58,7 +58,7 @@ namespace EShopworld.WorkerProcess.Stores
             await _documentClient.CreateDocumentCollectionIfNotExistsAsync(
                 UriFactory.CreateDatabaseUri(_options.Value.Database),
                 collectionDefinition,
-                new RequestOptions { OfferThroughput = _options.Value.OfferThroughput }).ConfigureAwait(false);
+                new RequestOptions {OfferThroughput = _options.Value.OfferThroughput}).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
@@ -66,7 +66,7 @@ namespace EShopworld.WorkerProcess.Stores
         {
             return await _retryPolicy.ExecuteAsync(async () =>
             {
-                var cosmosLease = (CosmosDbLease)lease;
+                var cosmosLease = (CosmosDbLease) lease;
 
                 if (cosmosLease == null)
                     throw new ArgumentException("Invalid lease type");
@@ -104,7 +104,7 @@ namespace EShopworld.WorkerProcess.Stores
             // There is no async document query
             return await _retryPolicy.ExecuteAsync(async () =>
             {
-                return (ILease)_documentClient.CreateDocumentQuery<CosmosDbLease>(
+                return (ILease) _documentClient.CreateDocumentQuery<CosmosDbLease>(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.Collection),
                         new FeedOptions
                         {
