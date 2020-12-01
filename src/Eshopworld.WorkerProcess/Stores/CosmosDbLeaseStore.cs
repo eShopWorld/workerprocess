@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
@@ -38,14 +39,21 @@ namespace EShopworld.WorkerProcess.Stores
         public async Task InitialiseAsync()
         {
             await _documentClient.CreateDatabaseIfNotExistsAsync(new Database {Id = _options.Value.Database})
-                .ConfigureAwait(false);
-
+                    .ConfigureAwait(false);
+            
             DocumentCollection collectionDefinition = new DocumentCollection
             {
                 Id = _options.Value.Collection
             };
 
             collectionDefinition.PartitionKey.Paths.Add("/leaseType");
+
+            var leaseConstraint = new UniqueKey
+            {
+                Paths = new Collection<string> { "/leaseType" }
+            };
+
+            collectionDefinition.UniqueKeyPolicy.UniqueKeys.Add(leaseConstraint);
 
             await _documentClient.CreateDocumentCollectionIfNotExistsAsync(
                 UriFactory.CreateDatabaseUri(_options.Value.Database),
@@ -162,7 +170,7 @@ namespace EShopworld.WorkerProcess.Stores
             return Policy
                 .Handle<DocumentClientException>(e => e.RetryAfter > TimeSpan.Zero)
                 .WaitAndRetryForeverAsync(
-                    (count, exception, context) => ((DocumentClientException) exception).RetryAfter,
+                    (count, exception, context) => ((DocumentClientException)exception).RetryAfter,
                     (exception, count, timeSpan, context) =>
                     {
                         _telemetry.Publish(new CosmosRetryEvent(timeSpan, count));
@@ -174,7 +182,7 @@ namespace EShopworld.WorkerProcess.Stores
         [ExcludeFromCodeCoverage]
         private ILease MapResource(ResourceResponse<Document> response)
         {
-            return (CosmosDbLease) (dynamic) response.Resource;
+            return (CosmosDbLease)(dynamic)response.Resource;
         }
 
         
