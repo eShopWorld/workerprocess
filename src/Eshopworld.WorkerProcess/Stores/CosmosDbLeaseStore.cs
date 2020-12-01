@@ -154,14 +154,74 @@ namespace EShopworld.WorkerProcess.Stores
             }).ConfigureAwait(false);
         }
 
+        /// <inheritdoc />
         public async Task<bool> AddLeaseRequestAsync(string leaseType, int priority, Guid instanceId)
         {
-            return await Task.FromResult(true);
+            var leaseRequest = new LeaseRequest
+            {
+                InstanceId = instanceId,
+                Priority = priority,
+                LeaseType = leaseType
+            };
+            return await _retryPolicy.ExecuteAsync(async () =>
+            {
+                try
+                {
+                    var response = await _documentClient.CreateDocumentAsync(
+                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.RequestsCollection),
+                        leaseRequest,
+                        new RequestOptions
+                        {
+
+                            ConsistencyLevel = _options.Value.ConsistencyLevel,
+                        }).ConfigureAwait(false);
+
+                    if (response.StatusCode == HttpStatusCode.Created)
+                        return true;
+                }
+                catch (DocumentClientException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+                {
+                    // document was created before, we did not get the lease
+                    // do not throw exception
+                    _telemetry.Publish(ex.ToExceptionEvent());
+                }
+
+                return false;
+            }).ConfigureAwait(false);
         }
 
+        /// <inheritdoc />
         public async Task<Guid?> SelectWinnerRequestAsync(string workerType)
         {
-            return await Task.FromResult(Guid.Empty);
+
+#pragma warning disable 1998
+            // There is no async document query
+            return await _retryPolicy.ExecuteAsync(async () =>
+            {
+                try
+                {
+                    var result = _documentClient.CreateDocumentQuery<LeaseRequest>(
+                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.RequestsCollection),
+                        new FeedOptions
+                        {
+                            ConsistencyLevel = _options.Value.ConsistencyLevel,
+                            EnableCrossPartitionQuery = true
+                        }).Where(so => so.LeaseType == workerType)
+                        .OrderBy(req => req.Priority)
+                        .ThenBy(req => req.Timestamp)
+                        .AsEnumerable()
+                        .FirstOrDefault();
+                    return result?.InstanceId;
+                }
+                catch (Exception e)
+                {
+                    _telemetry.Publish(e.ToExceptionEvent());
+                    throw;
+                }
+
+
+            }).ConfigureAwait(false);
+#pragma warning disable 1998
         }
 
 

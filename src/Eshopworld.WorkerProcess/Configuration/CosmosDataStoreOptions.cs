@@ -16,6 +16,10 @@ namespace EShopworld.WorkerProcess.Configuration
         /// The document collection
         /// </summary>
         public string Collection { get; set; } = "WorkerLeases";
+        /// <summary>
+        /// The document collection for leases request
+        /// </summary>
+        public string RequestsCollection { get; set; } = "LeaseRequests";
 
         /// <summary>
         /// The consistency level for the store
@@ -26,5 +30,6 @@ namespace EShopworld.WorkerProcess.Configuration
         /// The offer through put used when creating the collection
         /// </summary>
         public int OfferThroughput { get; set; } = 400;
+
     }
 }

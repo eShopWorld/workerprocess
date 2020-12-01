@@ -204,6 +204,110 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
             result.Result.Should().BeFalse();
         }
 
+        [Fact, IsUnit]
+        public async Task TestAddLeaseRequestAsync_WhenAddingLeaseRequest_ShouldReturnTrue()
+        {
+            // Arrange
+            _mockDocumentClient.Setup(m => m.CreateDocumentAsync(
+                    It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, "LeaseRequests")),
+                    It.IsAny<object>(),
+                    It.IsAny<RequestOptions>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new Document().ToResourceResponse(HttpStatusCode.Created));
+
+            // Act
+            var result = await _store.AddLeaseRequestAsync("worktype", 1, Guid.NewGuid());
+
+            // Assert
+            result.Should().BeTrue();
+            _mockTelemetry.Verify(tel=>tel.Publish(It.IsAny<ExceptionEvent>(),It.IsAny<string>(),
+                It.IsAny<string>(),It.IsAny<int>()),Times.Never);
+
+        }
+
+        [Fact, IsUnit]
+        public async Task TestAddLeaseRequestAsync_WhenAddingLeaseRequestWithConflict_ShouldReturnFalse()
+        {
+            // Arrange
+            _mockDocumentClient.Setup(m => m.CreateDocumentAsync(
+                    It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
+                    It.IsAny<object>(),
+                    It.IsAny<RequestOptions>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .ThrowsAsync(CreateDocumentClientExceptionForTesting(new Error(), HttpStatusCode.Conflict));
+
+            // Act
+            var result = await _store.AddLeaseRequestAsync("worktype", 1, Guid.NewGuid());
+
+            // Assert
+            result.Should().BeFalse();
+            _mockTelemetry.Verify(tel => tel.Publish(It.IsAny<ExceptionEvent>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<int>()), Times.Once);
+
+        }
+
+        [Fact, IsUnit]
+        public async Task SelectWinnerRequestAsync_WhenMultipleRequests_ShouldReturnTheOneWithHighestPriority()
+        {
+            // Arrange
+            var winnerLeaseRequest = new LeaseRequest
+            {
+                Id = Guid.NewGuid().ToString(),
+                InstanceId = Guid.NewGuid(),
+                LeaseType = "leasetype",
+                Priority = 0
+            };
+            var dataSource = new List<LeaseRequest>
+            {
+                new LeaseRequest
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    InstanceId = Guid.NewGuid(),
+                    LeaseType = "leasetype",
+                    Priority = 1
+                },
+                winnerLeaseRequest
+            }.AsQueryable();
+
+            Expression<Func<LeaseRequest, bool>> predicate = t => t.Id == winnerLeaseRequest.Id;
+            var expected = dataSource.AsEnumerable().Where(predicate.Compile());
+            var response = new FeedResponse<LeaseRequest>(expected);
+
+            var mockDocumentQuery = new Mock<IMockDocumentQuery<LeaseRequest>>();
+
+            mockDocumentQuery
+                .SetupSequence(m => m.HasMoreResults)
+                .Returns(true)
+                .Returns(false);
+
+            mockDocumentQuery
+                .Setup(_ => _.ExecuteNextAsync<LeaseRequest>(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(response);
+
+            var provider = new Mock<IQueryProvider>();
+            provider
+                .Setup(_ => _.CreateQuery<LeaseRequest>(It.IsAny<Expression>()))
+                .Returns(mockDocumentQuery.Object);
+
+            mockDocumentQuery.As<IQueryable<LeaseRequest>>().Setup(x => x.Provider).Returns(provider.Object);
+            mockDocumentQuery.As<IQueryable<LeaseRequest>>().Setup(x => x.Expression).Returns(dataSource.Expression);
+            mockDocumentQuery.As<IQueryable<LeaseRequest>>().Setup(x => x.ElementType).Returns(dataSource.ElementType);
+            mockDocumentQuery.As<IQueryable<LeaseRequest>>().Setup(x => x.GetEnumerator())
+                .Returns(() => response.GetEnumerator());
+
+            _mockDocumentClient.Setup(m => m.CreateDocumentQuery<LeaseRequest>(
+                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
+                It.IsAny<FeedOptions>())).Returns(mockDocumentQuery.Object);
+
+            // Act
+            var result = await _store.SelectWinnerRequestAsync("leasetype");
+
+            // Assert
+            result.Should().Be(winnerLeaseRequest.InstanceId);
+        }
+
         private static DocumentClientException CreateDocumentClientExceptionForTesting(
             Error error, HttpStatusCode httpStatusCode)
         {
