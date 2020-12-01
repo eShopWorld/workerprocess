@@ -119,22 +119,23 @@ namespace EShopworld.WorkerProcess.Stores
         }
 
         /// <inheritdoc />
-        public async Task<LeaseStoreResult> TryCreateLeaseAsync(string leaseType, int priority, Guid instanceId)
+        public async Task<LeaseStoreResult> TryCreateLeaseAsync(ILease lease)
         {
             return await _retryPolicy.ExecuteAsync(async () =>
             {
                 try
                 {
-                    var lease = new CosmosDbLease
+                    var cosmosDbLease = new CosmosDbLease
                     {
-                        Priority = priority,
-                        InstanceId = instanceId,
-                        LeaseType = leaseType
+                        InstanceId = lease.InstanceId,
+                        Interval = lease.Interval,
+                        LeasedUntil = lease.LeasedUntil,
+                        Priority = lease.Priority,
+                        LeaseType = lease.LeaseType
                     };
-
                     var response = await _documentClient.CreateDocumentAsync(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.Collection),
-                        lease,
+                        cosmosDbLease,
                         new RequestOptions
                         {
                             ConsistencyLevel = _options.Value.ConsistencyLevel
@@ -152,6 +153,17 @@ namespace EShopworld.WorkerProcess.Stores
                 return new LeaseStoreResult(null, false);
             }).ConfigureAwait(false);
         }
+
+        public async Task<bool> AddLeaseRequestAsync(string leaseType, int priority, Guid instanceId)
+        {
+            return await Task.FromResult(true);
+        }
+
+        public async Task<Guid?> SelectWinnerRequestAsync(string workerType)
+        {
+            return await Task.FromResult(Guid.Empty);
+        }
+
 
         private AsyncRetryPolicy CreateRetryPolicy()
         {
@@ -172,5 +184,7 @@ namespace EShopworld.WorkerProcess.Stores
         {
             return (CosmosDbLease)(dynamic)response.Resource;
         }
+
+        
     }
 }
