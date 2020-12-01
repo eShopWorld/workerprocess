@@ -31,5 +31,9 @@ namespace EShopworld.WorkerProcess.Configuration
         /// </summary>
         public int OfferThroughput { get; set; } = 400;
 
+        /// <summary>
+        /// TTL for lease requests
+        /// </summary>
+        public int LeaseRequestTimeToLive { get; set; } = 30;
     }
 }

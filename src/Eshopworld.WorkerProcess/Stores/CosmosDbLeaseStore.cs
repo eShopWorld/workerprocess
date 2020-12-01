@@ -161,7 +161,8 @@ namespace EShopworld.WorkerProcess.Stores
             {
                 InstanceId = instanceId,
                 Priority = priority,
-                LeaseType = leaseType
+                LeaseType = leaseType,
+                TimeToLive = _options.Value.LeaseRequestTimeToLive
             };
             return await _retryPolicy.ExecuteAsync(async () =>
             {
