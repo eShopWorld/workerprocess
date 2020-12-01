@@ -173,7 +173,7 @@ namespace EShopworld.WorkerProcess.Stores
                     };
                     var response = await _documentClient.CreateDocumentAsync(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.LeasesCollection),
-                        lease,
+                        cosmosDbLease,
                         new RequestOptions
                         {
                             ConsistencyLevel = _options.Value.ConsistencyLevel
