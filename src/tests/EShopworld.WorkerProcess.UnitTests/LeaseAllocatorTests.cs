@@ -158,7 +158,7 @@ namespace EShopworld.WorkerProcess.UnitTests
         }
 
         [Fact, IsUnit]
-        public async Task TestAllocateLeaseAsync_OnLeaseUpdateConflict_ShouldNotActivateLease()
+        public async Task TestAllocateLeaseAsync_OnLeaseUpdateConflict_ShouldNotUpdateLease()
         {
             // Arrange
             DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
@@ -287,7 +287,7 @@ namespace EShopworld.WorkerProcess.UnitTests
         }
 
         [Fact, IsUnit]
-        public async Task TestAllocateLeaseAsync_OnLeaseUpdateSucceeded_ShouldActivateLease()
+        public async Task TestAllocateLeaseAsync_OnLeaseUpdateSucceeded_ShouldUpdateLease()
         {
             // Arrange
             DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
