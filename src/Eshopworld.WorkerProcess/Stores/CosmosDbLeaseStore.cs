@@ -74,6 +74,20 @@ namespace EShopworld.WorkerProcess.Stores
                 Id = _options.Value.RequestsCollection
             };
 
+            var leaseConstraint = new UniqueKey
+            {
+                Paths = new Collection<string> { "/instanceId", "/leaseType" }
+            };
+
+            var sortingIndex = new Collection<CompositePath>
+            {
+                new CompositePath { Path = "/priority", Order = CompositePathSortOrder.Ascending },
+                new CompositePath { Path = "/_ts", Order = CompositePathSortOrder.Ascending }
+            };
+
+            collectionDefinition.UniqueKeyPolicy.UniqueKeys.Add(leaseConstraint);
+            collectionDefinition.IndexingPolicy.CompositeIndexes.Add(sortingIndex);
+
             collectionDefinition.PartitionKey.Paths.Add("/leaseType");
             collectionDefinition.DefaultTimeToLive = 30;
 
