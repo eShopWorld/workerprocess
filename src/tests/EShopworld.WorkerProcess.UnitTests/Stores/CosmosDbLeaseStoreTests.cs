@@ -209,7 +209,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         {
             // Arrange
             _mockDocumentClient.Setup(m => m.CreateDocumentAsync(
-                    It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, "LeaseRequests")),
+                    It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
                     It.IsAny<object>(),
                     It.IsAny<RequestOptions>(),
                     It.IsAny<bool>(),
