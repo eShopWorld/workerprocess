@@ -157,7 +157,7 @@ namespace EShopworld.WorkerProcess.Stores
         /// <inheritdoc />
         public async Task<bool> AddLeaseRequestAsync(string leaseType, int priority, Guid instanceId)
         {
-            var leaseRequest = new LeaseRequest
+            var leaseRequest = new CosmoDbLeaseRequest
             {
                 InstanceId = instanceId,
                 Priority = priority,
@@ -201,13 +201,15 @@ namespace EShopworld.WorkerProcess.Stores
             {
                 try
                 {
-                    var result = _documentClient.CreateDocumentQuery<LeaseRequest>(
+                    var query = _documentClient.CreateDocumentQuery<CosmoDbLeaseRequest>(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.RequestsCollection),
                         new FeedOptions
                         {
                             ConsistencyLevel = _options.Value.ConsistencyLevel,
                             EnableCrossPartitionQuery = true
-                        }).Where(so => so.LeaseType == workerType)
+                        });
+                        
+                   var result=query.Where(so => so.LeaseType == workerType)
                         .OrderBy(req => req.Priority)
                         .ThenBy(req => req.Timestamp)
                         .AsEnumerable()

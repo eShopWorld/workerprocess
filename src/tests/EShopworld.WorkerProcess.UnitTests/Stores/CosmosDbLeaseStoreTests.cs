@@ -217,10 +217,17 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 .ReturnsAsync(new Document().ToResourceResponse(HttpStatusCode.Created));
 
             // Act
-            var result = await _store.AddLeaseRequestAsync("worktype", 1, Guid.NewGuid());
+            var instanceId = Guid.NewGuid();
+            var result = await _store.AddLeaseRequestAsync("test", 1, instanceId);
 
             // Assert
             result.Should().BeTrue();
+            _mockDocumentClient.Verify(m => m.CreateDocumentAsync(
+                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
+              It.Is<CosmoDbLeaseRequest>(req=>req.TimeToLive==30 && req.Priority==1 && req.InstanceId==instanceId && req.LeaseType=="test"),
+                It.IsAny<RequestOptions>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()),Times.Once);
             _mockTelemetry.Verify(tel=>tel.Publish(It.IsAny<ExceptionEvent>(),It.IsAny<string>(),
                 It.IsAny<string>(),It.IsAny<int>()),Times.Never);
 
@@ -239,10 +246,17 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 .ThrowsAsync(CreateDocumentClientExceptionForTesting(new Error(), HttpStatusCode.Conflict));
 
             // Act
-            var result = await _store.AddLeaseRequestAsync("worktype", 1, Guid.NewGuid());
+            var instanceId = Guid.NewGuid();
+            var result = await _store.AddLeaseRequestAsync("test", 1, instanceId);
 
             // Assert
             result.Should().BeFalse();
+            _mockDocumentClient.Verify(m => m.CreateDocumentAsync(
+                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
+                It.Is<CosmoDbLeaseRequest>(req => req.TimeToLive == 30 && req.Priority == 1 && req.InstanceId == instanceId && req.LeaseType == "test"),
+                It.IsAny<RequestOptions>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()), Times.Once);
             _mockTelemetry.Verify(tel => tel.Publish(It.IsAny<ExceptionEvent>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<int>()), Times.Once);
 
@@ -252,16 +266,16 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         public async Task SelectWinnerRequestAsync_WhenMultipleRequests_ShouldReturnTheOneWithHighestPriority()
         {
             // Arrange
-            var winnerLeaseRequest = new LeaseRequest
+            var winnerLeaseRequest = new CosmoDbLeaseRequest
             {
                 Id = Guid.NewGuid().ToString(),
                 InstanceId = Guid.NewGuid(),
                 LeaseType = "leasetype",
                 Priority = 0
             };
-            var dataSource = new List<LeaseRequest>
+            var dataSource = new List<CosmoDbLeaseRequest>
             {
-                new LeaseRequest
+                new CosmoDbLeaseRequest
                 {
                     Id = Guid.NewGuid().ToString(),
                     InstanceId = Guid.NewGuid(),
@@ -271,11 +285,11 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 winnerLeaseRequest
             }.AsQueryable();
 
-            Expression<Func<LeaseRequest, bool>> predicate = t => t.Id == winnerLeaseRequest.Id;
+            Expression<Func<CosmoDbLeaseRequest, bool>> predicate = t => t.Id == winnerLeaseRequest.Id;
             var expected = dataSource.AsEnumerable().Where(predicate.Compile());
-            var response = new FeedResponse<LeaseRequest>(expected);
+            var response = new FeedResponse<CosmoDbLeaseRequest>(expected);
 
-            var mockDocumentQuery = new Mock<IMockDocumentQuery<LeaseRequest>>();
+            var mockDocumentQuery = new Mock<IMockDocumentQuery<CosmoDbLeaseRequest>>();
 
             mockDocumentQuery
                 .SetupSequence(m => m.HasMoreResults)
@@ -283,21 +297,21 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 .Returns(false);
 
             mockDocumentQuery
-                .Setup(_ => _.ExecuteNextAsync<LeaseRequest>(It.IsAny<CancellationToken>()))
+                .Setup(_ => _.ExecuteNextAsync<CosmoDbLeaseRequest>(It.IsAny<CancellationToken>()))
                 .ReturnsAsync(response);
 
             var provider = new Mock<IQueryProvider>();
             provider
-                .Setup(_ => _.CreateQuery<LeaseRequest>(It.IsAny<Expression>()))
+                .Setup(_ => _.CreateQuery<CosmoDbLeaseRequest>(It.IsAny<Expression>()))
                 .Returns(mockDocumentQuery.Object);
 
-            mockDocumentQuery.As<IQueryable<LeaseRequest>>().Setup(x => x.Provider).Returns(provider.Object);
-            mockDocumentQuery.As<IQueryable<LeaseRequest>>().Setup(x => x.Expression).Returns(dataSource.Expression);
-            mockDocumentQuery.As<IQueryable<LeaseRequest>>().Setup(x => x.ElementType).Returns(dataSource.ElementType);
-            mockDocumentQuery.As<IQueryable<LeaseRequest>>().Setup(x => x.GetEnumerator())
-                .Returns(() => response.GetEnumerator());
+            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.Provider).Returns(provider.Object);
+            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.Expression).Returns(dataSource.Expression);
+            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.ElementType).Returns(dataSource.ElementType);
+            mockDocumentQuery.As<IQueryable<CosmoDbLeaseRequest>>().Setup(x => x.GetEnumerator())
+                .Returns(() => dataSource.GetEnumerator());
 
-            _mockDocumentClient.Setup(m => m.CreateDocumentQuery<LeaseRequest>(
+            _mockDocumentClient.Setup(m => m.CreateDocumentQuery<CosmoDbLeaseRequest>(
                 It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
                 It.IsAny<FeedOptions>())).Returns(mockDocumentQuery.Object);
 

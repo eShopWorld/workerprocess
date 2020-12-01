@@ -4,7 +4,7 @@ using Newtonsoft.Json;
 
 namespace EShopworld.WorkerProcess.Stores
 {
-    internal class LeaseRequest : Document
+    internal class CosmoDbLeaseRequest : Document
     {
         [JsonProperty("priority")]
         public int Priority { get; set; }
