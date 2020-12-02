@@ -38,7 +38,7 @@ namespace EShopworld.WorkerProcess
             _timer = timer ?? throw new ArgumentNullException(nameof(timer));
             _slottedInterval = slottedInterval ?? throw new ArgumentNullException(nameof(slottedInterval));
 
-            InstanceId = Guid.NewGuid();
+            InstanceId = _options.Value.InstanceId ?? Guid.NewGuid();
 
             if (string.IsNullOrWhiteSpace(_options.Value.WorkerType))
             {

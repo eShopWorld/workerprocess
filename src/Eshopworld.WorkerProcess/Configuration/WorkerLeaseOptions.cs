@@ -11,9 +11,14 @@ namespace EShopworld.WorkerProcess.Configuration
         ///     This is a category type of a worker that acquires leases.
         /// </summary>
         /// <remarks>
-        ///     This is a domain specific value, for example it can be returnsprocessor etc
+        ///     This is a domain specific value, for example it can be returns processor etc
         /// </remarks>
         public string WorkerType { get; set; }
+
+        /// <summary>
+        /// Instance Id (optional) to identify a process or a group to which a lease is allocated
+        /// </summary>
+        public Guid? InstanceId { get; set; }
 
         /// <summary>
         ///     The worker process priority.
@@ -36,7 +41,7 @@ namespace EShopworld.WorkerProcess.Configuration
         ///     The amount of time in minutes that the lease interval executes
         /// </summary>
         public TimeSpan LeaseInterval { get; set; } = new TimeSpan(0,5,0);
-        
+
         /// <summary>
         /// Default delay used en lease election process
         /// </summary>
