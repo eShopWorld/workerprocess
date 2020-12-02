@@ -73,13 +73,13 @@ namespace EShopworld.WorkerProcess
             {
                 lease = new Lease
                 {
-                    InstanceId = instanceId,
-                    Priority = _options.Value.Priority,
                     LeaseType = _options.Value.WorkerType
                 };
             }
 
             var now = ServerDateTime.UtcNow;
+            lease.InstanceId = instanceId;
+            lease.Priority = _options.Value.Priority;
             lease.Interval = _slottedInterval.Calculate(now, _options.Value.LeaseInterval);
             lease.LeasedUntil = now.Add(lease.Interval.Value);
             var persistResult = await TryPersistLease(lease).ConfigureAwait(false);
@@ -89,13 +89,14 @@ namespace EShopworld.WorkerProcess
 
         private async Task<LeaseStoreResult> TryPersistLease(ILease lease)
         {
+            var instanceId = lease.InstanceId.Value;
             var leaseResult = string.IsNullOrEmpty(lease.Id) 
                 ? await _leaseStore.TryCreateLeaseAsync(lease).ConfigureAwait(false)
                 : await _leaseStore.TryUpdateLeaseAsync(lease).ConfigureAwait(false);
 
             if (leaseResult.Result)
             {
-                _telemetry.Publish(new LeaseAcquisitionEvent(lease.InstanceId.Value, _options.Value.WorkerType,
+                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                     _options.Value.Priority,
                     $"Lease successfully persisted. {GenerateLeaseInfo(leaseResult.Lease)}"));
                 return leaseResult;
@@ -104,7 +105,7 @@ namespace EShopworld.WorkerProcess
             // Read the lease for event
             lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
 
-            _telemetry.Publish(new LeaseAcquisitionEvent(lease.InstanceId.Value, _options.Value.WorkerType,
+            _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                 _options.Value.Priority,
                 $"Lease could not be persisted. Current stored lease is: {GenerateLeaseInfo(lease)}"));
             return new LeaseStoreResult(null, false);

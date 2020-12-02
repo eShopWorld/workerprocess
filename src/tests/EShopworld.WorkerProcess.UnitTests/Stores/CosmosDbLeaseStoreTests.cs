@@ -190,9 +190,15 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
             // Arrange
             var mockDocumentQuery = new Mock<IMockDocumentQuery<CosmosDbLease>>();
 
+            var response = new FeedResponse<CosmosDbLease>(new CosmosDbLease[] { });
+
             mockDocumentQuery
                 .SetupSequence(m => m.HasMoreResults)
-                .Returns(false);
+                .Returns(true);
+
+            mockDocumentQuery
+                .Setup(_ => _.ExecuteNextAsync<CosmosDbLease>(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(response).Verifiable();
 
             var provider = new Mock<IQueryProvider>();
             provider
@@ -212,8 +218,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
 
             // Assert
             result.Should().BeNull();
-            mockDocumentQuery
-                .Verify(_ => _.ExecuteNextAsync<CosmosDbLease>(It.IsAny<CancellationToken>()),Times.Never);
+            mockDocumentQuery.Verify();
 
         }
 
@@ -394,10 +399,15 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         {
             // Arrange
             var mockDocumentQuery = new Mock<IMockDocumentQuery<CosmosDbLeaseRequest>>();
+            var response = new FeedResponse<CosmosDbLeaseRequest>(new CosmosDbLeaseRequest[] { });
 
             mockDocumentQuery
                 .Setup(m => m.HasMoreResults)
-                .Returns(false);
+                .Returns(true);
+
+            mockDocumentQuery
+                .Setup(_ => _.ExecuteNextAsync<CosmosDbLeaseRequest>(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(response).Verifiable();
 
             var provider = new Mock<IQueryProvider>();
             provider
@@ -418,8 +428,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
 
             // Assert
             result.Should().BeNull();
-            mockDocumentQuery
-                .Verify(_ => _.ExecuteNextAsync<CosmosDbLeaseRequest>(It.IsAny<CancellationToken>()),Times.Never);
+            mockDocumentQuery.Verify();
         }
 
         private static DocumentClientException CreateDocumentClientExceptionForTesting(

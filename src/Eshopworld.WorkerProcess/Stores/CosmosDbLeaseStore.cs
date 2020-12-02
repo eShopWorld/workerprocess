@@ -140,19 +140,26 @@ namespace EShopworld.WorkerProcess.Stores
         {
             return await _retryPolicy.ExecuteAsync(async () =>
             {
-                var query =_documentClient.CreateDocumentQuery<CosmosDbLease>(
-                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.LeasesCollection),
-                        new FeedOptions
-                        {
-                            ConsistencyLevel = _options.Value.ConsistencyLevel
-                        })
-                    .Where(so => so.LeaseType == leaseType)
-                    .AsDocumentQuery();
+                try
+                {
+                    var query = _documentClient.CreateDocumentQuery<CosmosDbLease>(
+                            UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.LeasesCollection),
+                            new FeedOptions
+                            {
+                                ConsistencyLevel = _options.Value.ConsistencyLevel
+                            })
+                        .Where(so => so.LeaseType == leaseType)
+                        .AsDocumentQuery();
+
+                    var feedResponse = await query.ExecuteNextAsync<CosmosDbLease>();
+                    return feedResponse.FirstOrDefault();
+                }
+                catch (Exception e)
+                {
+                    _telemetry.Publish(e.ToExceptionEvent());
+                    throw;
+                }
                 
-                if(!query.HasMoreResults)
-                    return null;
-                var feedResponse = await query.ExecuteNextAsync<CosmosDbLease>();
-                return feedResponse.First();
             }).ConfigureAwait(false);
 
         }
@@ -248,9 +255,8 @@ namespace EShopworld.WorkerProcess.Stores
                         .ThenBy(req => req.Timestamp)
                         .Take(1).AsDocumentQuery();
                     
-                    if (!query.HasMoreResults) return null;
                     var result = await query.ExecuteNextAsync<CosmosDbLeaseRequest>();
-                    return result.Single().InstanceId;
+                    return result.SingleOrDefault()?.InstanceId;
 
                 }
                 catch (Exception e)
