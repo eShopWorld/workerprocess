@@ -118,5 +118,45 @@ namespace EShopworld.WorkerProcess.UnitTests
             _mockTimer.Verify(m => m.Stop(), Times.Once);
             _mockTimer.VerifyRemove(m => m.Elapsed -= It.IsAny<EventHandler<ElapsedEventArgs>>());
         }
+
+        [Fact, IsUnit]
+        public void WorkerLease_WhenInstanceIdIsPresentInOptions_NewInstanceIdIsNotCreated()
+        {
+            var options = new WorkerLeaseOptions
+            {
+                LeaseInterval = new TimeSpan(0, 2, 0),
+                Priority = 1,
+                WorkerType = "workertype",
+                InstanceId = new Guid("f167a595-5b18-4d54-ab8a-f14faafb2214")
+            };
+            var workerLease = new WorkerLease(
+                _mockTelemetry.Object,
+                _mockLeaseAllocator.Object,
+                _mockTimer.Object,
+                _mockSlottedInterval.Object,
+                Options.Create(options));
+
+            workerLease.InstanceId.ToString().Should().Be("f167a595-5b18-4d54-ab8a-f14faafb2214");
+        }
+
+        [Fact, IsUnit]
+        public void WorkerLease_WhenInstanceIdNotPresentInOptions_NewInstanceIdIsCreated()
+        {
+            var options = new WorkerLeaseOptions
+            {
+                LeaseInterval = new TimeSpan(0, 2, 0),
+                Priority = 1,
+                WorkerType = "workertype"
+                
+            };
+            var workerLease = new WorkerLease(
+                _mockTelemetry.Object,
+                _mockLeaseAllocator.Object,
+                _mockTimer.Object,
+                _mockSlottedInterval.Object,
+                Options.Create(options));
+
+            workerLease.InstanceId.Should().NotBeEmpty();
+        }
     }
 }
