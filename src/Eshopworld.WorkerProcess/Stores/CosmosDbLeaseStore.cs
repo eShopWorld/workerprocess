@@ -138,22 +138,23 @@ namespace EShopworld.WorkerProcess.Stores
         /// <inheritdoc />
         public async Task<ILease> ReadByLeaseTypeAsync(string leaseType)
         {
-#pragma warning disable 1998
-            // There is no async document query
             return await _retryPolicy.ExecuteAsync(async () =>
             {
-                return (ILease)_documentClient.CreateDocumentQuery<CosmosDbLease>(
+                var query =_documentClient.CreateDocumentQuery<CosmosDbLease>(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.LeasesCollection),
                         new FeedOptions
                         {
-                            ConsistencyLevel = _options.Value.ConsistencyLevel,
-                            EnableCrossPartitionQuery = true
+                            ConsistencyLevel = _options.Value.ConsistencyLevel
                         })
                     .Where(so => so.LeaseType == leaseType)
-                    .AsEnumerable()
-                    .FirstOrDefault();
+                    .AsDocumentQuery();
+                
+                if(!query.HasMoreResults)
+                    return null;
+                var feedResponse = await query.ExecuteNextAsync<CosmosDbLease>();
+                return feedResponse.First();
             }).ConfigureAwait(false);
-#pragma warning disable 1998
+
         }
 
         /// <inheritdoc />
@@ -244,7 +245,9 @@ namespace EShopworld.WorkerProcess.Stores
                         })
                         .Where(so => so.LeaseType == workerType)
                         .OrderBy(req => req.Priority)
-                        .ThenBy(req => req.Timestamp).Take(1).AsDocumentQuery();
+                        .ThenBy(req => req.Timestamp)
+                        .Take(1).AsDocumentQuery();
+                    
                     if (!query.HasMoreResults) return null;
                     var result = await query.ExecuteNextAsync<CosmosDbLeaseRequest>();
                     return result.Single().InstanceId;

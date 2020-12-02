@@ -142,7 +142,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         }
 
         [Fact, IsUnit]
-        public async Task TestReadByLeaseTypeAsync()
+        public async Task ReadByLeaseTypeAsync_WhenQueryHasResult_ShouldReturnLease()
         {
             // Arrange
             var lease = new CosmosDbLease
@@ -151,25 +151,17 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 LeaseType = "leasetype"
             };
 
-            var dataSource = new List<CosmosDbLease>
-            {
-                lease
-            }.AsQueryable();
-
-            Expression<Func<CosmosDbLease, bool>> predicate = t => t.Id == lease.Id;
-            var expected = dataSource.AsEnumerable().Where(predicate.Compile());
-            var response = new FeedResponse<CosmosDbLease>(expected);
+            var response = new FeedResponse<CosmosDbLease>(new []{lease});
 
             var mockDocumentQuery = new Mock<IMockDocumentQuery<CosmosDbLease>>();
 
             mockDocumentQuery
                 .SetupSequence(m => m.HasMoreResults)
-                .Returns(true)
-                .Returns(false);
+                .Returns(true);
 
             mockDocumentQuery
                 .Setup(_ => _.ExecuteNextAsync<CosmosDbLease>(It.IsAny<CancellationToken>()))
-                .ReturnsAsync(response);
+                .ReturnsAsync(response).Verifiable();
 
             var provider = new Mock<IQueryProvider>();
             provider
@@ -177,11 +169,9 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 .Returns(mockDocumentQuery.Object);
 
             mockDocumentQuery.As<IQueryable<CosmosDbLease>>().Setup(x => x.Provider).Returns(provider.Object);
-            mockDocumentQuery.As<IQueryable<CosmosDbLease>>().Setup(x => x.Expression).Returns(dataSource.Expression);
-            mockDocumentQuery.As<IQueryable<CosmosDbLease>>().Setup(x => x.ElementType).Returns(dataSource.ElementType);
-            mockDocumentQuery.As<IQueryable<CosmosDbLease>>().Setup(x => x.GetEnumerator())
-                .Returns(() => dataSource.GetEnumerator());
-
+            mockDocumentQuery.As<IQueryable<CosmosDbLease>>().Setup(x => x.Expression).Returns(new CosmosDbLease[] { }.AsQueryable().Expression);
+            mockDocumentQuery.As<IQueryable<CosmosDbLease>>().Setup(x => x.ElementType).Returns(typeof(CosmosDbLease));
+          
             _mockDocumentClient.Setup(m => m.CreateDocumentQuery<CosmosDbLease>(
                 It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.LeasesCollection)),
                 It.IsAny<FeedOptions>())).Returns(mockDocumentQuery.Object);
@@ -190,8 +180,43 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
             var result = await _store.ReadByLeaseTypeAsync(lease.LeaseType);
 
             // Assert
-            result.Should().NotBeNull();
+            result.Should().Be(lease);
+            mockDocumentQuery.Verify();
         }
+
+        [Fact, IsUnit]
+        public async Task ReadByLeaseTypeAsync_WhenQueryHasNoResult_ShouldReturnNull()
+        {
+            // Arrange
+            var mockDocumentQuery = new Mock<IMockDocumentQuery<CosmosDbLease>>();
+
+            mockDocumentQuery
+                .SetupSequence(m => m.HasMoreResults)
+                .Returns(false);
+
+            var provider = new Mock<IQueryProvider>();
+            provider
+                .Setup(_ => _.CreateQuery<CosmosDbLease>(It.IsAny<Expression>()))
+                .Returns(mockDocumentQuery.Object);
+
+            mockDocumentQuery.As<IQueryable<CosmosDbLease>>().Setup(x => x.Provider).Returns(provider.Object);
+            mockDocumentQuery.As<IQueryable<CosmosDbLease>>().Setup(x => x.Expression).Returns(new CosmosDbLease[] { }.AsQueryable().Expression);
+            mockDocumentQuery.As<IQueryable<CosmosDbLease>>().Setup(x => x.ElementType).Returns(typeof(CosmosDbLease));
+
+            _mockDocumentClient.Setup(m => m.CreateDocumentQuery<CosmosDbLease>(
+                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.LeasesCollection)),
+                It.IsAny<FeedOptions>())).Returns(mockDocumentQuery.Object);
+
+            // Act
+            var result = await _store.ReadByLeaseTypeAsync("test");
+
+            // Assert
+            result.Should().BeNull();
+            mockDocumentQuery
+                .Verify(_ => _.ExecuteNextAsync<CosmosDbLease>(It.IsAny<CancellationToken>()),Times.Never);
+
+        }
+
 
         [Fact, IsUnit]
         public async Task TestTryCreateLeaseAsyncCreated()
@@ -253,7 +278,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         }
 
         [Fact, IsUnit]
-        public async Task TestAddLeaseRequestAsync_WhenAddingLeaseRequest_ShouldReturnTrue()
+        public async Task AddLeaseRequestAsync_WhenAddingLeaseRequest_ShouldReturnTrue()
         {
             // Arrange
             var instanceId = Guid.NewGuid();
@@ -286,7 +311,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         }
 
         [Fact, IsUnit]
-        public async Task TestAddLeaseRequestAsync_WhenAddingLeaseRequestWithConflict_ShouldReturnFalse()
+        public async Task AddLeaseRequestAsync_WhenAddingLeaseRequestWithConflict_ShouldReturnFalse()
         {
             // Arrange
             var instanceId = Guid.NewGuid();
