@@ -37,7 +37,17 @@ namespace EShopworld.WorkerProcess
 
             var lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
             if (lease?.LeasedUntil != null && lease.LeasedUntil.Value > ServerDateTime.UtcNow)
-                return lease.InstanceId == instanceId ? lease : null;
+            {
+                if (lease.InstanceId == instanceId)
+                {
+                    _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                        _options.Value.Priority, $"Existing lease reused: {GenerateLeaseInfo(lease)}"));
+                    
+                    return lease;
+                }
+
+                return null;
+            }
             
             await _leaseStore.AddLeaseRequestAsync(new LeaseRequest
             {
@@ -107,7 +117,12 @@ namespace EShopworld.WorkerProcess
             
             // if requested by the same group (instanceId) return the lease
             if (lease?.InstanceId == instanceId)
+            {
+                _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                _options.Value.Priority, $"Existing lease reused: {GenerateLeaseInfo(lease)}"));
+
                 return new LeaseStoreResult(lease, false);
+            }
 
             _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                 _options.Value.Priority,

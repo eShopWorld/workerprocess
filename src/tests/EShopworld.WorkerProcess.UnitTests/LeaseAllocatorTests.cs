@@ -204,7 +204,7 @@ namespace EShopworld.WorkerProcess.UnitTests
         }
 
         [Fact, IsUnit]
-        public async Task TestAllocateLeaseAsync_OnExistingLeaseWithSameInstanceId_ShouldNotAcquireLease()
+        public async Task TestAllocateLeaseAsync_OnExistingLeaseWithSameInstanceId_ShouldReturnExistingLease()
         {
             // Arrange
             DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
