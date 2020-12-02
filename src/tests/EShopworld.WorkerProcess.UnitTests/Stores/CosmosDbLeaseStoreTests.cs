@@ -256,15 +256,6 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         public async Task TestAddLeaseRequestAsync_WhenAddingLeaseRequest_ShouldReturnTrue()
         {
             // Arrange
-            _mockDocumentClient.Setup(m => m.CreateDocumentAsync(
-                    It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
-                    It.IsAny<object>(),
-                    It.IsAny<RequestOptions>(),
-                    It.IsAny<bool>(),
-                    It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new Document().ToResourceResponse(HttpStatusCode.Created));
-
-            // Act
             var instanceId = Guid.NewGuid();
             var leaseRequest = new LeaseRequest
             {
@@ -273,17 +264,22 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 InstanceId = instanceId,
                 TimeToLive = 30
             };
-            var result = await _store.AddLeaseRequestAsync(leaseRequest);
+            _mockDocumentClient.Setup(m => m.CreateDocumentAsync(
+                    It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
+                    It.Is<CosmoDbLeaseRequest>(req => req.TimeToLive == leaseRequest.TimeToLive && req.Priority == leaseRequest.Priority
+                                                                                                && req.InstanceId == leaseRequest.InstanceId && req.LeaseType == leaseRequest.LeaseType),
+                    It.IsAny<RequestOptions>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new Document().ToResourceResponse(HttpStatusCode.Created))
+                .Verifiable();
 
+            // Act
+           
+            var result = await _store.AddLeaseRequestAsync(leaseRequest);
             // Assert
             result.Should().BeTrue();
-            _mockDocumentClient.Verify(m => m.CreateDocumentAsync(
-                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
-              It.Is<CosmoDbLeaseRequest>(req=>req.TimeToLive== leaseRequest.TimeToLive && req.Priority==leaseRequest.Priority
-                                                                                       && req.InstanceId==leaseRequest.InstanceId && req.LeaseType==leaseRequest.LeaseType),
-                It.IsAny<RequestOptions>(),
-                It.IsAny<bool>(),
-                It.IsAny<CancellationToken>()),Times.Once);
+            _mockDocumentClient.Verify();
             _mockTelemetry.Verify(tel=>tel.Publish(It.IsAny<ExceptionEvent>(),It.IsAny<string>(),
                 It.IsAny<string>(),It.IsAny<int>()),Times.Never);
 
@@ -293,15 +289,6 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
         public async Task TestAddLeaseRequestAsync_WhenAddingLeaseRequestWithConflict_ShouldReturnFalse()
         {
             // Arrange
-            _mockDocumentClient.Setup(m => m.CreateDocumentAsync(
-                    It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
-                    It.IsAny<object>(),
-                    It.IsAny<RequestOptions>(),
-                    It.IsAny<bool>(),
-                    It.IsAny<CancellationToken>()))
-                .ThrowsAsync(CreateDocumentClientExceptionForTesting(new Error(), HttpStatusCode.Conflict));
-
-            // Act
             var instanceId = Guid.NewGuid();
             var leaseRequest = new LeaseRequest
             {
@@ -310,17 +297,22 @@ namespace EShopworld.WorkerProcess.UnitTests.Stores
                 InstanceId = instanceId,
                 TimeToLive = 30
             };
+            _mockDocumentClient.Setup(m => m.CreateDocumentAsync(
+                    It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
+                    It.Is<CosmoDbLeaseRequest>(req => req.TimeToLive == leaseRequest.TimeToLive && req.Priority == leaseRequest.Priority
+                                                                                                && req.InstanceId == leaseRequest.InstanceId && req.LeaseType == leaseRequest.LeaseType),
+                    It.IsAny<RequestOptions>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .ThrowsAsync(CreateDocumentClientExceptionForTesting(new Error(), HttpStatusCode.Conflict))
+                .Verifiable();
+
+            // Act
             var result = await _store.AddLeaseRequestAsync(leaseRequest);
 
             // Assert
             result.Should().BeFalse();
-            _mockDocumentClient.Verify(m => m.CreateDocumentAsync(
-                It.Is<Uri>(u => u == UriFactory.CreateDocumentCollectionUri(_options.Database, _options.RequestsCollection)),
-                It.Is<CosmoDbLeaseRequest>(req => req.TimeToLive == leaseRequest.TimeToLive && req.Priority == leaseRequest.Priority
-                                                                                            && req.InstanceId == leaseRequest.InstanceId && req.LeaseType == leaseRequest.LeaseType),
-                It.IsAny<RequestOptions>(),
-                It.IsAny<bool>(),
-                It.IsAny<CancellationToken>()), Times.Once);
+            _mockDocumentClient.Verify();
             _mockTelemetry.Verify(tel => tel.Publish(It.IsAny<ExceptionEvent>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<int>()), Times.Once);
 
