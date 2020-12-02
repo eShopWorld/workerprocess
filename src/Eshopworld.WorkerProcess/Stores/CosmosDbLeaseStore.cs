@@ -195,7 +195,7 @@ namespace EShopworld.WorkerProcess.Stores
         /// <inheritdoc />
         public async Task<bool> AddLeaseRequestAsync(LeaseRequest leaseRequest)
         {
-            var cosmosDbLeaseRequest = new CosmoDbLeaseRequest
+            var cosmosDbLeaseRequest = new CosmosDbLeaseRequest
             {
                 InstanceId = leaseRequest.InstanceId,
                 Priority = leaseRequest.Priority,
@@ -236,7 +236,7 @@ namespace EShopworld.WorkerProcess.Stores
             {
                 try
                 {
-                    var query = _documentClient.CreateDocumentQuery<CosmoDbLeaseRequest>(
+                    var query = _documentClient.CreateDocumentQuery<CosmosDbLeaseRequest>(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.RequestsCollection),
                         new FeedOptions
                         {
@@ -246,7 +246,7 @@ namespace EShopworld.WorkerProcess.Stores
                         .OrderBy(req => req.Priority)
                         .ThenBy(req => req.Timestamp).Take(1).AsDocumentQuery();
                     if (!query.HasMoreResults) return null;
-                    var result = await query.ExecuteNextAsync<CosmoDbLeaseRequest>();
+                    var result = await query.ExecuteNextAsync<CosmosDbLeaseRequest>();
                     return result.Single().InstanceId;
 
                 }

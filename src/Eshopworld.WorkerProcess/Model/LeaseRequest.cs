@@ -10,6 +10,6 @@ namespace EShopworld.WorkerProcess.Model
 
         public string LeaseType { get; set; }
 
-        public int TimeToLive { get; set; }
+        public int? TimeToLive { get; set; }
     }
 }
