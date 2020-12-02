@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EShopworld.WorkerProcess.Model;
+using System;
 using System.Threading.Tasks;
 
 namespace EShopworld.WorkerProcess.Stores
@@ -31,11 +32,9 @@ namespace EShopworld.WorkerProcess.Stores
         /// <summary>
         /// Add a new LeaseRequest
         /// </summary>
-        /// <param name="leaseType"></param>
-        /// <param name="priority"></param>
-        /// <param name="instanceId"></param>
-        /// <returns>if request was successful</returns>
-        Task<bool> AddLeaseRequestAsync(string leaseType, int priority, Guid instanceId);
+        /// <param name="leaseRequest"></param>
+        /// <returns>if request was successfully</returns>
+        Task<bool> AddLeaseRequestAsync(LeaseRequest leaseRequest);
         
         /// <summary>
         /// Return Winner LeaseRequest

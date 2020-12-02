@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using Eshopworld.Core;
 
 namespace EShopworld.WorkerProcess.Telemetry

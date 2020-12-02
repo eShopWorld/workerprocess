@@ -6,9 +6,11 @@ using System.Net;
 using System.Threading.Tasks;
 using Eshopworld.Core;
 using EShopworld.WorkerProcess.Configuration;
+using EShopworld.WorkerProcess.Model;
 using EShopworld.WorkerProcess.Telemetry;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
+using Microsoft.Azure.Documents.Linq;
 using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
@@ -89,7 +91,7 @@ namespace EShopworld.WorkerProcess.Stores
             collectionDefinition.IndexingPolicy.CompositeIndexes.Add(sortingIndex);
 
             collectionDefinition.PartitionKey.Paths.Add("/leaseType");
-            collectionDefinition.DefaultTimeToLive = 30;
+            collectionDefinition.DefaultTimeToLive = -1;
 
             await _documentClient.CreateDocumentCollectionIfNotExistsAsync(
                 UriFactory.CreateDatabaseUri(_options.Value.Database),
@@ -136,22 +138,30 @@ namespace EShopworld.WorkerProcess.Stores
         /// <inheritdoc />
         public async Task<ILease> ReadByLeaseTypeAsync(string leaseType)
         {
-#pragma warning disable 1998
-            // There is no async document query
             return await _retryPolicy.ExecuteAsync(async () =>
             {
-                return (ILease)_documentClient.CreateDocumentQuery<CosmosDbLease>(
-                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.LeasesCollection),
-                        new FeedOptions
-                        {
-                            ConsistencyLevel = _options.Value.ConsistencyLevel,
-                            EnableCrossPartitionQuery = true
-                        })
-                    .Where(so => so.LeaseType == leaseType)
-                    .AsEnumerable()
-                    .FirstOrDefault();
+                try
+                {
+                    var query = _documentClient.CreateDocumentQuery<CosmosDbLease>(
+                            UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.LeasesCollection),
+                            new FeedOptions
+                            {
+                                ConsistencyLevel = _options.Value.ConsistencyLevel
+                            })
+                        .Where(so => so.LeaseType == leaseType)
+                        .AsDocumentQuery();
+
+                    var feedResponse = await query.ExecuteNextAsync<CosmosDbLease>();
+                    return feedResponse.FirstOrDefault();
+                }
+                catch (Exception e)
+                {
+                    _telemetry.Publish(e.ToExceptionEvent());
+                    throw;
+                }
+                
             }).ConfigureAwait(false);
-#pragma warning disable 1998
+
         }
 
         /// <inheritdoc />
@@ -171,7 +181,7 @@ namespace EShopworld.WorkerProcess.Stores
                     };
                     var response = await _documentClient.CreateDocumentAsync(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.LeasesCollection),
-                        lease,
+                        cosmosDbLease,
                         new RequestOptions
                         {
                             ConsistencyLevel = _options.Value.ConsistencyLevel
@@ -190,14 +200,73 @@ namespace EShopworld.WorkerProcess.Stores
             }).ConfigureAwait(false);
         }
 
-        public async Task<bool> AddLeaseRequestAsync(string leaseType, int priority, Guid instanceId)
+        /// <inheritdoc />
+        public async Task<bool> AddLeaseRequestAsync(LeaseRequest leaseRequest)
         {
-            return await Task.FromResult(true);
+            var cosmosDbLeaseRequest = new CosmosDbLeaseRequest
+            {
+                InstanceId = leaseRequest.InstanceId,
+                Priority = leaseRequest.Priority,
+                LeaseType = leaseRequest.LeaseType,
+                TimeToLive = leaseRequest.TimeToLive
+            };
+            return await _retryPolicy.ExecuteAsync(async () =>
+            {
+                try
+                {
+                    var response = await _documentClient.CreateDocumentAsync(
+                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.RequestsCollection),
+                        cosmosDbLeaseRequest,
+                        new RequestOptions
+                        {
+                            ConsistencyLevel = _options.Value.ConsistencyLevel,
+                        }).ConfigureAwait(false);
+
+                    if (response.StatusCode == HttpStatusCode.Created)
+                        return true;
+                }
+                catch (DocumentClientException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
+                {
+                    // document was created before, we did not get the lease
+                    // do not throw exception
+                    _telemetry.Publish(ex.ToExceptionEvent());
+                }
+
+                return false;
+            }).ConfigureAwait(false);
         }
 
+        /// <inheritdoc />
         public async Task<Guid?> SelectWinnerRequestAsync(string workerType)
         {
-            return await Task.FromResult(Guid.Empty);
+
+            return await _retryPolicy.ExecuteAsync<Guid?>(async () =>
+            {
+                try
+                {
+                    var query = _documentClient.CreateDocumentQuery<CosmosDbLeaseRequest>(
+                        UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.RequestsCollection),
+                        new FeedOptions
+                        {
+                            ConsistencyLevel = _options.Value.ConsistencyLevel
+                        })
+                        .Where(so => so.LeaseType == workerType)
+                        .OrderBy(req => req.Priority)
+                        .ThenBy(req => req.Timestamp)
+                        .Take(1).AsDocumentQuery();
+                    
+                    var result = await query.ExecuteNextAsync<CosmosDbLeaseRequest>();
+                    return result.SingleOrDefault()?.InstanceId;
+
+                }
+                catch (Exception e)
+                {
+                    _telemetry.Publish(e.ToExceptionEvent());
+                    throw;
+                }
+
+
+            }).ConfigureAwait(false);
         }
 
 
