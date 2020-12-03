@@ -11,7 +11,6 @@ namespace EShopworld.WorkerProcess
         Guid InstanceId { get; }
 
         /// <summary>
-        /// <summary>
         /// Start Leasing
         /// </summary>
         void StartLeasing();
