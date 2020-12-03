@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Threading.Tasks;
-
 namespace EShopworld.WorkerProcess
 {
     public interface IWorkerLease
@@ -9,7 +7,6 @@ namespace EShopworld.WorkerProcess
         /// The instance id
         /// </summary>
         Guid InstanceId { get; }
-
         /// <summary>
         /// Start Leasing
         /// </summary>
