@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Castle.DynamicProxy.Generators.Emitters.SimpleAST;
 using Eshopworld.Core;
 using Eshopworld.DevOps;
 using Eshopworld.Telemetry;
@@ -127,6 +127,40 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         }
 
         [Fact, IsIntegration]
+        public async Task TestMultipleConcurrentWorkLeases()
+        {
+            ManualResetEvent manualResetEvent = new ManualResetEvent(false);
+
+            // Arrange
+            Random r = new Random();
+            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            SetupWorkerLeases(30, i => r.Next(7));
+
+            // Act
+            await leaseStore.InitialiseAsync();
+
+            foreach (var workerLease in _workerLeases)
+            {
+                workerLease.StartLeasing();
+
+                _output.WriteLine($"[{DateTime.UtcNow}] Starting [{workerLease.InstanceId}]");
+            }
+
+            manualResetEvent.WaitOne(new TimeSpan(0, 1, 30));
+
+            foreach (var workerLease in _workerLeases)
+            {
+                workerLease.StopLeasing();
+
+                _output.WriteLine($"Stopping [{workerLease.InstanceId}]");
+            }
+
+            // Assert
+            _allocatedList.Select(w=>w.InstanceId).Count().Should().Be(1);
+            _allocatedList.First().Priority.Should().Be(_workerLeases.Select(w => w.Priority).Min());
+        }
+
+        [Fact, IsIntegration]
         public void TestMultipleWorkLeasesSamePriority()
         {
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
@@ -178,7 +212,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 var telemetry = _serviceProvider.GetService<IBigBrother>();
                 var leaseStore = _serviceProvider.GetService<ILeaseStore>();
                 var slottedInterval = _serviceProvider.GetService<ISlottedInterval>();
-                var timer = _serviceProvider.GetService<ITimer>();
+                var timer = new SystemTimer();
 
                 var leaseAllocator = new LeaseAllocator(telemetry, leaseStore, slottedInterval, options);
 
@@ -186,7 +220,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
                 workerLease.LeaseAllocated += (sender, args) =>
                 {
-                    _output.WriteLine($"[{DateTime.UtcNow}] Lease allocated too [{workerLease.InstanceId}] Expiry: [{args.Expiry}]");
+                    _output.WriteLine($"[{DateTime.UtcNow}] Lease allocated to [{workerLease.InstanceId}] Expiry: [{args.Expiry}]");
 
                     _allocatedList.Add((IWorkerLease)sender);
                 };

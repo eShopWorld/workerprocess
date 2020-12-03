@@ -9,6 +9,12 @@ namespace EShopworld.WorkerProcess
         /// The instance id
         /// </summary>
         Guid InstanceId { get; }
+
+        /// <summary>
+        /// Priority
+        /// </summary>
+        int Priority { get; }
+        /// <summary>
         /// <summary>
         /// Start Leasing
         /// </summary>
