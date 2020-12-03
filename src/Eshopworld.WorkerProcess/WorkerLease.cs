@@ -50,9 +50,6 @@ namespace EShopworld.WorkerProcess
         public Guid InstanceId { get; }
 
         /// <inheritdoc />
-        public int Priority => _options.Value.Priority;
-
-        /// <inheritdoc />
         public void StartLeasing()
         {
             OperationTelemetryHandler(() =>

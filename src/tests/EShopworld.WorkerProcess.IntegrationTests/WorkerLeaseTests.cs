@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
 using System.Threading.Tasks;
 using Eshopworld.Core;
@@ -30,7 +31,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         private readonly ITestOutputHelper _output;
         private readonly List<IWorkerLease> _allocatedList;
         private readonly List<IWorkerLease> _expiredList;
-        private readonly List<IWorkerLease> _workerLeases;
+        private readonly Dictionary<IWorkerLease,int> _workerLeases;
 
         public WorkerLeaseTests(ITestOutputHelper output)
         {
@@ -44,7 +45,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             _serviceProvider = serviceCollection.BuildServiceProvider();
 
-            _workerLeases = new List<IWorkerLease>();
+            _workerLeases = new Dictionary<IWorkerLease, int>();
             _allocatedList = new List<IWorkerLease>();
             _expiredList = new List<IWorkerLease>();
 
@@ -104,7 +105,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             // Act
             await leaseStore.InitialiseAsync();
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var workerLease in _workerLeases.Keys)
             {
                 Thread.Sleep(new TimeSpan(0, 0, 1) * r.Next(10));
 
@@ -115,7 +116,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             manualResetEvent.WaitOne(new TimeSpan(0, 2, 30));
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var workerLease in _workerLeases.Keys)
             {
                 workerLease.StopLeasing();
 
@@ -133,23 +134,22 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
 
             // Arrange
-            Random r = new Random();
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
-            SetupWorkerLeases(30, i => r.Next(7));
+            SetupWorkerLeases(30, i => WorkerLeaseOptions.MaxPriority - i % WorkerLeaseOptions.MaxPriority - 1);
 
             // Act
             await leaseStore.InitialiseAsync();
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var workerLease in _workerLeases.Keys)
             {
                 workerLease.StartLeasing();
 
                 _output.WriteLine($"[{DateTime.UtcNow}] Starting [{workerLease.InstanceId}]");
             }
 
-            manualResetEvent.WaitOne(new TimeSpan(0, 1, 30));
+            manualResetEvent.WaitOne(new TimeSpan(0, 2, 30));
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var workerLease in _workerLeases.Keys)
             {
                 workerLease.StopLeasing();
 
@@ -159,8 +159,9 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             // Assert
             using (new AssertionScope())
             {
-                _allocatedList.Select(w => w.InstanceId).Count().Should().Be(1);
-                _allocatedList.First().Priority.Should().Be(_workerLeases.Select(w => w.Priority).Min());
+                var workerLease = _allocatedList.FirstOrDefault();
+                workerLease.Should().NotBeNull();
+                _workerLeases[workerLease].Should().Be(0);
             }
            
         }
@@ -180,7 +181,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             // Act
             leaseStore.InitialiseAsync();
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var workerLease in _workerLeases.Keys)
             {
                 Thread.Sleep(new TimeSpan(0, 0, 1) * r.Next(10));
 
@@ -191,7 +192,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             manualResetEvent.WaitOne(new TimeSpan(0, 2, 30));
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var workerLease in _workerLeases.Keys)
             {
                 workerLease.StopLeasing();
 
@@ -237,7 +238,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                     _expiredList.Add((IWorkerLease)sender);
                 };
 
-                _workerLeases.Add(workerLease);
+                _workerLeases.Add(workerLease,options.Value.Priority);
             }
         }
 
