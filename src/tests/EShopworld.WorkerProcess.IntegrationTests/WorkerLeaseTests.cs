@@ -12,6 +12,7 @@ using EShopworld.WorkerProcess.Configuration;
 using EShopworld.WorkerProcess.Infrastructure;
 using EShopworld.WorkerProcess.Stores;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Extensions.Configuration;
@@ -156,8 +157,12 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             }
 
             // Assert
-            _allocatedList.Select(w=>w.InstanceId).Count().Should().Be(1);
-            _allocatedList.First().Priority.Should().Be(_workerLeases.Select(w => w.Priority).Min());
+            using (new AssertionScope())
+            {
+                _allocatedList.Select(w => w.InstanceId).Count().Should().Be(1);
+                _allocatedList.First().Priority.Should().Be(_workerLeases.Select(w => w.Priority).Min());
+            }
+           
         }
 
         [Fact, IsIntegration]
