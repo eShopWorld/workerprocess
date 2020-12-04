@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Threading.Tasks;
-
 namespace EShopworld.WorkerProcess
 {
     public interface IWorkerLease
