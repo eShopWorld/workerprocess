@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -13,6 +14,7 @@ using EShopworld.WorkerProcess.Infrastructure;
 using EShopworld.WorkerProcess.Stores;
 using FluentAssertions;
 using FluentAssertions.Execution;
+using Kusto.Cloud.Platform.Utils;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Extensions.Configuration;
@@ -33,7 +35,6 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         private readonly List<IWorkerLease> _workerLeases;
         private readonly List<ManualResetEvent> _leaseAllocatedEvents;
         private readonly List<ManualResetEvent> _leaseExpiredEvents;
-
 
         public WorkerLeaseTests(ITestOutputHelper output)
         {
@@ -168,7 +169,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 _allocatedList.Select(wp => wp.Value).Should().AllBeEquivalentTo(0);
                 _expiredList.Should().HaveCount(1);
             }
-           
+
         }
 
         [Fact, IsIntegration]
@@ -212,7 +213,100 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             }
         }
 
-        private void SetupWorkerLeases(int leaseCount, Func<int,int> assignPriorityFunc)
+        [Fact, IsIntegration]
+        public async Task WorkerLease_MultipleWorkersPerInstanceId_LeaseAllocatedToAllWorkersWithSameInstanceId()
+        {
+            // Arrange
+            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            for (var i = 0; i < 3; i++)
+            {
+                var iPriority = i;
+                // setup 3 workers for each priority
+                SetupWorkerLeases(3, _ => iPriority, Guid.NewGuid());
+            }
+
+            // Act
+            await leaseStore.InitialiseAsync();
+
+            Parallel.ForEach(_workerLeases, (workerLease) =>
+            {
+                workerLease.Key.StartLeasing();
+
+                _output.WriteLine($"Starting [{workerLease.Key.InstanceId}]");
+            });
+
+            await Task.Delay(new TimeSpan(0, 1, 30));
+
+            foreach (var (workerLease, _) in _workerLeases)
+            {
+                workerLease.StopLeasing();
+
+                _output.WriteLine($"Stopping [{workerLease.InstanceId}]");
+            }
+
+            // Assert
+            // assert that the lease is assigned to the same instances 
+            using (new AssertionScope())
+            {
+                _allocatedList.Should().HaveCount(3);
+                _allocatedList.Select(lease => lease.InstanceId).Distinct().Should().HaveCount(1);
+                _workerLeases // priority of the workerProcesses that got the lease should be 0
+                    .Where(kv => _allocatedList.Select(lease => lease.InstanceId).Contains(kv.Key.InstanceId))
+                    .Select(kv => kv.Value).Should().AllBeEquivalentTo(0);
+                _expiredList.Should().NotBeEmpty();
+            }
+        }
+
+        [Fact, IsIntegration]
+        public async Task WorkerLease_MultipleWorkersPerInstanceIdStaggeredStart_LeaseAllocatedToAllWorkersWithSameInstanceId()
+        {
+            // Arrange
+            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var nPriorities = 3;
+            for (var i = 0; i < nPriorities; i++)
+            {
+                var iPriority = i;
+                // setup 3 workers for each priority
+                SetupWorkerLeases(3, _ => iPriority, Guid.NewGuid());
+            }
+
+            // Act
+            await leaseStore.InitialiseAsync();
+
+            Action<KeyValuePair<IWorkerLease, int>> startFunc = (workerLease) =>
+            {
+                workerLease.Key.StartLeasing();
+
+                _output.WriteLine($"Starting [{workerLease.Key.InstanceId}, priority {workerLease.Value}]");
+            };
+
+            // start worker processes priority 1 and 2 first
+            Parallel.ForEach(_workerLeases.Where(kv => kv.Value != 0), startFunc);
+
+
+            // wait and start worker processes with priority 0
+            await Task.Delay(new TimeSpan(0, 1, 0));
+
+            Parallel.ForEach(_workerLeases.Where(kv=> kv.Value == 0), startFunc);
+
+            await Task.Delay(new TimeSpan(0, 1, 30));
+
+            foreach (var (workerLease, _) in _workerLeases)
+            {
+                workerLease.StopLeasing();
+                _output.WriteLine($"Stopping [{workerLease.InstanceId}]");
+            }
+
+            // Assert
+            using (new AssertionScope())
+            {
+                _allocatedList.Should().HaveCountGreaterOrEqualTo(6);
+                _allocatedList.Select(lease => lease.InstanceId).Distinct().Should().HaveCountLessOrEqualTo(2);
+                _expiredList.Should().NotBeEmpty();
+            }
+        }
+
+        private void SetupWorkerLeases(int leaseCount, Func<int, int> assignPriorityFunc, Guid? instanceId = null)
         {
             for (int i = 0; i < leaseCount; i++)
             {
