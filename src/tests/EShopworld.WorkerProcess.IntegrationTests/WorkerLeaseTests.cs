@@ -135,7 +135,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             // Arrange
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
-            SetupWorkerLeases(30, i => WorkerLeaseOptions.MaxPriority - i % WorkerLeaseOptions.MaxPriority - 1);
+            SetupWorkerLeases(10, i => WorkerLeaseOptions.MaxPriority - i % WorkerLeaseOptions.MaxPriority - 1);
 
             // Act
             await leaseStore.InitialiseAsync();
