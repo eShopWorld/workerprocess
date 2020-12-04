@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -14,7 +13,6 @@ using EShopworld.WorkerProcess.Infrastructure;
 using EShopworld.WorkerProcess.Stores;
 using FluentAssertions;
 using FluentAssertions.Execution;
-using Kusto.Cloud.Platform.Utils;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Extensions.Configuration;
@@ -248,11 +246,10 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             // assert that the lease is assigned to the same instances 
             using (new AssertionScope())
             {
-                _allocatedList.Should().HaveCount(3);
+                _allocatedList.Should().HaveCount(3); 
                 _allocatedList.Select(lease => lease.InstanceId).Distinct().Should().HaveCount(1);
-                _workerLeases // priority of the workerProcesses that got the lease should be 0
-                    .Where(kv => _allocatedList.Select(lease => lease.InstanceId).Contains(kv.Key.InstanceId))
-                    .Select(kv => kv.Value).Should().AllBeEquivalentTo(0);
+                _allocatedList.Select(lease => _workerLeases[lease]) // priority of the workerProcesses that got the lease should be 0
+                    .Should().AllBeEquivalentTo(0);
                 _expiredList.Should().NotBeEmpty();
             }
         }
