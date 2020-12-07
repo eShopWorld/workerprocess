@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,6 +14,7 @@ using EShopworld.WorkerProcess.Infrastructure;
 using EShopworld.WorkerProcess.Stores;
 using FluentAssertions;
 using FluentAssertions.Execution;
+using JetBrains.Annotations;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Extensions.Configuration;
@@ -33,6 +35,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         private readonly List<IWorkerLease> _workerLeases;
         private readonly List<ManualResetEvent> _leaseAllocatedEvents;
         private readonly List<ManualResetEvent> _leaseExpiredEvents;
+
 
         public WorkerLeaseTests(ITestOutputHelper output)
         {
@@ -222,7 +225,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 // setup 3 workers for each priority
                 SetupWorkerLeases(3, _ => iPriority, Guid.NewGuid());
             }
-
+            
             // Act
             await leaseStore.InitialiseAsync();
 
@@ -233,7 +236,8 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 _output.WriteLine($"Starting [{workerLease.Key.InstanceId}]");
             });
 
-            await Task.Delay(new TimeSpan(0, 1, 30));
+            _leaseAllocatedEvent.WaitOne();
+            _leaseExpiredEvent.WaitOne();
 
             foreach (var (workerLease, _) in _workerLeases)
             {
@@ -260,38 +264,44 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             // Arrange
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
             var nPriorities = 3;
-            for (var i = 0; i < nPriorities; i++)
+            
+            Parallel.For(0, nPriorities, (i) =>
             {
                 var iPriority = i;
                 // setup 3 workers for each priority
                 SetupWorkerLeases(3, _ => iPriority, Guid.NewGuid());
-            }
+            });
 
             // Act
             await leaseStore.InitialiseAsync();
 
-            Action<KeyValuePair<IWorkerLease, int>> startFunc = (workerLease) =>
+            void StartFunc(KeyValuePair<IWorkerLease, int> workerLease)
             {
                 workerLease.Key.StartLeasing();
-
-                _output.WriteLine($"Starting [{workerLease.Key.InstanceId}, priority {workerLease.Value}]");
-            };
+                _output.WriteLine($"[{DateTime.UtcNow}] Starting [{workerLease.Key.InstanceId}, priority {workerLease.Value}]");
+            }
 
             // start worker processes priority 1 and 2 first
-            Parallel.ForEach(_workerLeases.Where(kv => kv.Value != 0), startFunc);
+            Parallel.ForEach(_workerLeases.Where(kv => kv.Value != 0), StartFunc);
 
+            _leaseAllocatedEvent.WaitOne();
+            _leaseAllocatedEvent.Reset();
 
             // wait and start worker processes with priority 0
-            await Task.Delay(new TimeSpan(0, 1, 0));
+            Parallel.ForEach(_workerLeases.Where(kv=> kv.Value == 0), StartFunc);
 
-            Parallel.ForEach(_workerLeases.Where(kv=> kv.Value == 0), startFunc);
+            _leaseExpiredEvent.WaitOne();
+            _leaseAllocatedEvent.Reset();
 
-            await Task.Delay(new TimeSpan(0, 1, 30));
+            _leaseAllocatedEvent.WaitOne();
+
+            _leaseExpiredEvent.Reset();
+            _leaseExpiredEvent.WaitOne();
 
             foreach (var (workerLease, _) in _workerLeases)
             {
                 workerLease.StopLeasing();
-                _output.WriteLine($"Stopping [{workerLease.InstanceId}]");
+                _output.WriteLine($"[{DateTime.UtcNow}] Stopping [{workerLease.InstanceId}]");
             }
 
             // Assert
@@ -311,7 +321,8 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 {
                     LeaseInterval = new TimeSpan(0, 0, 30),
                     Priority = assignPriorityFunc(i),
-                    WorkerType = "workertype"
+                    WorkerType = "workertype",
+                    InstanceId = instanceId
                 });
 
                 var workerLease = CreateWorkerLease(options);
