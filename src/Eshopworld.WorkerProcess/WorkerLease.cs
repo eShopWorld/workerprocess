@@ -54,10 +54,9 @@ namespace EShopworld.WorkerProcess
         {
             OperationTelemetryHandler(() =>
             {
-                _timer.Elapsed += TimerElapsed;
-
-                _timer.Interval = _slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval).TotalMilliseconds;
-                _timer.Start();
+              
+                var interval = _slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval);
+                Task.Delay(interval).ContinueWith((t)=>LeaseAsync());
             });
         }
 
@@ -80,9 +79,8 @@ namespace EShopworld.WorkerProcess
 
         internal async Task LeaseAsync()
         {
-            _timer.Stop();
-
-            try
+           
+            while(true)
             {
                 if (CheckLeaseExpired(CurrentLease))
                 {
@@ -96,20 +94,16 @@ namespace EShopworld.WorkerProcess
                 if (CurrentLease != null)
                     OnLeaseAllocated(CurrentLease.LeasedUntil.GetValueOrDefault());
 
-                if(CurrentLease?.LeasedUntil.HasValue ?? false)
-                {
-                    _timer.Interval = CurrentLease.Interval.Value.TotalMilliseconds;
+                var interval = _slottedInterval.Calculate(
+                    CurrentLease?.LeasedUntil ?? ServerDateTime.UtcNow,
+                    _options.Value.LeaseInterval);
+
+                if (CurrentLease?.LeasedUntil.HasValue ?? false)
+                { 
+                    interval = CurrentLease.Interval.Value;
                 }
-                else
-                {
-                    _timer.Interval = _slottedInterval.Calculate(
-                        CurrentLease?.LeasedUntil ?? ServerDateTime.UtcNow,
-                        _options.Value.LeaseInterval).TotalMilliseconds;
-                }
-            }
-            finally
-            {
-                _timer.Start();
+
+                await Task.Delay(interval);
             }
         }
 
