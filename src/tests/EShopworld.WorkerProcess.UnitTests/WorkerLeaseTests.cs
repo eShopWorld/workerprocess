@@ -66,7 +66,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             // Assert
             eventFired.Should().BeTrue();
             _mockSlottedInterval.Verify(m => m.Calculate(new DateTime(2000, 1, 1, 12, 0, 0), TimeSpan.FromMinutes(2)));
-            _mockLeaseAllocator.Verify(m => m.ReleaseLeaseAsync(It.IsAny<ILease>()), Times.Never);
+            _mockLeaseAllocator.Verify(m => m.ReleaseLeaseAsync(It.IsAny<ILease>()));
         }
 
         [Fact, IsUnit]
