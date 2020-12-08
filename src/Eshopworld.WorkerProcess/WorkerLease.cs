@@ -52,7 +52,7 @@ namespace EShopworld.WorkerProcess
         {
             OperationTelemetryHandler(() =>
             {
-                _timer.ExecuteIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),LeaseAsync);
+                _timer.ExecutePeriodicallyIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),LeaseAsync);
             });
         }
 
@@ -71,7 +71,7 @@ namespace EShopworld.WorkerProcess
         /// <inheritdoc />
         public event EventHandler<EventArgs> LeaseExpired;
 
-        internal async Task LeaseAsync()
+        internal async Task<TimeSpan> LeaseAsync()
         {
             if (CheckLeaseExpired(CurrentLease))
             {
@@ -87,14 +87,11 @@ namespace EShopworld.WorkerProcess
 
             if (CurrentLease?.LeasedUntil.HasValue ?? false)
             {
-                await _timer.ExecuteIn(CurrentLease.Interval.Value, LeaseAsync);
+                return CurrentLease.LeasedUntil.Value.Subtract(ServerDateTime.UtcNow);
             }
-            else
-            {
-                await _timer.ExecuteIn(_slottedInterval.Calculate(
-                    CurrentLease?.LeasedUntil ?? ServerDateTime.UtcNow,
-                    _options.Value.LeaseInterval), LeaseAsync);
-            }
+            return _slottedInterval.Calculate(
+                CurrentLease?.LeasedUntil ?? ServerDateTime.UtcNow,
+                _options.Value.LeaseInterval);
         }
 
         private bool CheckLeaseExpired(ILease lease)

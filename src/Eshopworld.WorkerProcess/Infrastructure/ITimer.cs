@@ -9,12 +9,12 @@ namespace EShopworld.WorkerProcess.Infrastructure
     public interface ITimer : IDisposable
     {
         /// <summary>
-        /// Execute a func after some delay
+        /// Execute a func periodically after some delay
         /// </summary>
         /// <param name="interval"></param>
         /// <param name="executor"></param>
         /// <returns></returns>
-        Task ExecuteIn(TimeSpan interval, Func<Task> executor);
+        Task ExecutePeriodicallyIn(TimeSpan interval, Func<Task<TimeSpan>> executor);
 
         /// <summary>
         /// Stop the timer

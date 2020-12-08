@@ -20,14 +20,17 @@ namespace EShopworld.WorkerProcess.Infrastructure
         {
             _cancellationTokenSource = new CancellationTokenSource();
         }
+
         /// <inheritdoc />
-        public async Task ExecuteIn(TimeSpan interval,Func<Task> executor)
+        public async Task ExecutePeriodicallyIn(TimeSpan interval,Func<Task<TimeSpan>> executor)
         {
             await Task.Delay(interval).ContinueWith(async t=>
             {
-                if (!_cancellationTokenSource.IsCancellationRequested)
+                while (!_cancellationTokenSource.Token.IsCancellationRequested)
                 {
-                    await executor();
+                    var newInterval = await executor();
+
+                    await Task.Delay(newInterval, _cancellationTokenSource.Token);
                 }
             }).ConfigureAwait(false);
         }

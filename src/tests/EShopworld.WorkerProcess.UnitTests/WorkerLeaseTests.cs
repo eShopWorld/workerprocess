@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading.Tasks;
-using System.Timers;
 using Eshopworld.Core;
 using Eshopworld.Tests.Core;
 using EShopworld.WorkerProcess.Configuration;
@@ -102,7 +101,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             // Assert
             _mockSlottedInterval.Verify(m => m.Calculate(new DateTime(2000, 1, 1, 12, 0, 0), TimeSpan.FromMinutes(2)));
-            _mockTimer.Verify(m => m.ExecuteIn(It.IsAny<TimeSpan>(),_workerLease.LeaseAsync), Times.Once);
+            _mockTimer.Verify(m => m.ExecutePeriodicallyIn(It.IsAny<TimeSpan>(),_workerLease.LeaseAsync), Times.Once);
         }
 
         [Fact, IsUnit]
