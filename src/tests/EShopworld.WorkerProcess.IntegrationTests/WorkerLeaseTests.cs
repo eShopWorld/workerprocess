@@ -31,7 +31,8 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         private readonly Dictionary<IWorkerLease, int> _allocatedList;
         private readonly List<IWorkerLease> _expiredList;
         private readonly List<IWorkerLease> _workerLeases;
-        private readonly List<ManualResetEvent> _manualResetEvents;
+        private readonly List<ManualResetEvent> _leaseAllocatedEvents;
+        private readonly List<ManualResetEvent> _leaseExpiredEvents;
 
 
         public WorkerLeaseTests(ITestOutputHelper output)
@@ -49,7 +50,8 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             _workerLeases = new List<IWorkerLease>();
             _allocatedList = new Dictionary<IWorkerLease, int>();
             _expiredList = new List<IWorkerLease>();
-            _manualResetEvents = new List<ManualResetEvent>();
+            _leaseAllocatedEvents = new List<ManualResetEvent>();
+            _leaseExpiredEvents = new List<ManualResetEvent>();
             _output = output;
         }
 
@@ -113,7 +115,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 _output.WriteLine($"Starting [{workerLease.InstanceId}]");
             }
 
-            WaitHandle.WaitAny(_manualResetEvents.ToArray(), new TimeSpan(0, 2, 30));
+            WaitHandle.WaitAny(_leaseExpiredEvents.ToArray(), new TimeSpan(0, 2, 30));
 
             foreach (var workerLease in _workerLeases)
             {
@@ -149,7 +151,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 _output.WriteLine($"[{DateTime.UtcNow}] Starting [{workerLease.InstanceId}]");
             }
 
-            WaitHandle.WaitAny(_manualResetEvents.ToArray(), new TimeSpan(0, 2, 30));
+            WaitHandle.WaitAny(_leaseExpiredEvents.ToArray(), new TimeSpan(0, 2, 30));
             
 
             foreach (var workerLease in _workerLeases)
@@ -192,7 +194,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 _output.WriteLine($"Starting [{workerLease.InstanceId}]");
             }
 
-            WaitHandle.WaitAny(_manualResetEvents.ToArray(), new TimeSpan(0, 2, 30));
+            WaitHandle.WaitAny(_leaseExpiredEvents.ToArray(), new TimeSpan(0, 2, 30));
 
             foreach (var workerLease in _workerLeases)
             {
@@ -222,23 +224,29 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 });
 
                 var workerLease = CreateWorkerLease(options);
-                var manualResetEvent = new ManualResetEvent(false);
-                _manualResetEvents.Add(manualResetEvent);
+                
+                var leaseAllocatedEvent = new ManualResetEvent(false);
+                _leaseAllocatedEvents.Add(leaseAllocatedEvent);
+                
+                var leaseExpiredEvent = new ManualResetEvent(false);
+                _leaseExpiredEvents.Add(leaseExpiredEvent);
 
                 workerLease.LeaseAllocated += (sender, args) =>
                 {
                     _output.WriteLine($"[{DateTime.UtcNow}] Lease allocated to [{workerLease.InstanceId}] Expiry: [{args.Expiry}]");
-
                     _allocatedList.Add((IWorkerLease)sender,options.Value.Priority);
+
+                    leaseAllocatedEvent.Set();
+                    leaseAllocatedEvent.Reset();
                 };
 
                 workerLease.LeaseExpired += (sender, args) =>
                 {
                     _output.WriteLine($"[{DateTime.UtcNow}] Lease expired for [{workerLease.InstanceId}]");
-
                     _expiredList.Add((IWorkerLease)sender);
-                    manualResetEvent.Set();
-                    manualResetEvent.Reset();
+                    
+                    leaseExpiredEvent.Set();
+                    leaseExpiredEvent.Reset();
                 };
 
                 _workerLeases.Add(workerLease);
