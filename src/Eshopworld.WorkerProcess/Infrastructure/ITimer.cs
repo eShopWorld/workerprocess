@@ -17,11 +17,6 @@ namespace EShopworld.WorkerProcess.Infrastructure
         Task ExecuteIn(TimeSpan interval, Func<Task> executor);
 
         /// <summary>
-        /// Start the timer
-        /// </summary>
-        void Start();
-
-        /// <summary>
         /// Stop the timer
         /// </summary>
         void Stop();

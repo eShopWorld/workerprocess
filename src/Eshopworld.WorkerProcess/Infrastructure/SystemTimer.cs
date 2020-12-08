@@ -15,8 +15,12 @@ namespace EShopworld.WorkerProcess.Infrastructure
         // To detect redundant calls
         private bool _disposed = false;
 
-        private CancellationTokenSource _cancellationTokenSource;
+        private readonly CancellationTokenSource _cancellationTokenSource;
 
+        public SystemTimer()
+        {
+            _cancellationTokenSource = new CancellationTokenSource();
+        }
         /// <inheritdoc />
         public async Task ExecuteIn(TimeSpan interval,Func<Task> executor)
         {
@@ -29,23 +33,16 @@ namespace EShopworld.WorkerProcess.Infrastructure
             });
         }
 
-        public void Start()
-        {
-            _cancellationTokenSource = new CancellationTokenSource();
-        }
-
         /// <inheritdoc />
         public void Stop()
         {
-            if(_cancellationTokenSource==null)
-                throw new WorkerLeaseException("Timer was not started!");
             _cancellationTokenSource.Cancel();
         }
 
         // Public implementation of Dispose pattern callable by consumers.
         public void Dispose()
         {
-            if (_disposed || _cancellationTokenSource==null)
+            if (_disposed)
             {
                 return;
             }

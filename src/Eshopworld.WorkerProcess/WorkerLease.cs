@@ -52,7 +52,6 @@ namespace EShopworld.WorkerProcess
         {
             OperationTelemetryHandler(() =>
             {
-                _timer.Start();
                 _timer.ExecuteIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),LeaseAsync);
             });
         }
