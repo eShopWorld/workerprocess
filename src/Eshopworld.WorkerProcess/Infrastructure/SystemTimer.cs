@@ -29,7 +29,7 @@ namespace EShopworld.WorkerProcess.Infrastructure
                 {
                     await executor();
                 }
-            });
+            }).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
