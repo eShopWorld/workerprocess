@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -28,11 +29,11 @@ namespace EShopworld.WorkerProcess.IntegrationTests
     {
         private readonly ServiceProvider _serviceProvider;
         private readonly ITestOutputHelper _output;
-        private readonly Dictionary<IWorkerLease, int> _allocatedList;
-        private readonly List<IWorkerLease> _expiredList;
+        private readonly ConcurrentDictionary<IWorkerLease, int> _allocatedList;
+        private readonly ConcurrentBag<IWorkerLease> _expiredList;
         private readonly List<IWorkerLease> _workerLeases;
         private readonly List<ManualResetEvent> _manualResetEvents;
-
+        private readonly object _lock = new object();
 
         public WorkerLeaseTests(ITestOutputHelper output)
         {
@@ -47,8 +48,8 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             _serviceProvider = serviceCollection.BuildServiceProvider();
 
             _workerLeases = new List<IWorkerLease>();
-            _allocatedList = new Dictionary<IWorkerLease, int>();
-            _expiredList = new List<IWorkerLease>();
+            _allocatedList = new ConcurrentDictionary<IWorkerLease, int>();
+            _expiredList = new ConcurrentBag<IWorkerLease>();
             _manualResetEvents = new List<ManualResetEvent>();
             _output = output;
         }
@@ -213,21 +214,24 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         public async Task TestWorkLease_WhenLowerPriorityStartsLeaseBeforeHigherPriority_TheHighestPriorityShouldAlwaysWin()
         {
             //arrange
-            List<IWorkerLease> expired = new List<IWorkerLease>();
+            ConcurrentBag<IWorkerLease> expired = new ConcurrentBag<IWorkerLease>();
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
 
             Guid? winner = null;
             void OnWorkerProcessOnLeaseAllocated(object sender, LeaseAllocatedEventArgs args)
             {
-                var wp = sender as WorkerLease;
-                winner = wp.InstanceId;
+                
+                lock (_lock)
+                {
+                    var wp = sender as WorkerLease;
+                    winner = wp.InstanceId;
+                }
             }
 
             void OnWorkerProcessOnLeaseExpired(object sender, EventArgs args)
             {
                 var wp = sender as WorkerLease;
-                winner = wp.InstanceId;
                 manualResetEvent.Set();
                 expired.Add(wp);
             }
@@ -271,21 +275,24 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         public async Task TestWorkLease_WhenHigherPriorityStartsLeaseBeforeLowerPriority_TheHighestPriorityShouldAlwaysWin()
         {
             //arrange
-            List<IWorkerLease> expired = new List<IWorkerLease>();
+            ConcurrentBag<IWorkerLease> expired = new ConcurrentBag<IWorkerLease>();
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
 
             Guid? winner = null;
             void OnWorkerProcessOnLeaseAllocated(object sender, LeaseAllocatedEventArgs args)
             {
-                var wp = sender as WorkerLease;
-                winner = wp.InstanceId;
+                
+                lock (_lock)
+                {
+                    var wp = sender as WorkerLease;
+                    winner = wp.InstanceId;
+                }
             }
 
             void OnWorkerProcessOnLeaseExpired(object sender, EventArgs args)
             {
                 var wp = sender as WorkerLease;
-                winner = wp.InstanceId;
                 manualResetEvent.Set();
                 expired.Add(wp);
             }
@@ -348,8 +355,12 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             void OnWorkerProcessOnLeaseAllocated(object sender, LeaseAllocatedEventArgs args)
             {
-                var wp = sender as WorkerLease;
-                winner = wp.InstanceId;
+                
+                lock (_lock)
+                {
+                    var wp = sender as WorkerLease;
+                    winner = wp.InstanceId;
+                }
                 manualResetEvent.Set();
                 manualResetEvent.Reset();
                 //While the lease is acquired another process tries to acquire the lease in between
@@ -359,7 +370,10 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 laterWorkerProcess.LeaseAllocated += (sender, eventArgs) =>
                 {
                     //It should not get here
-                    winner = (sender as WorkerLease).InstanceId;
+                    lock (_lock)
+                    {
+                        winner = (sender as WorkerLease).InstanceId;
+                    }
                 };
             }
 
@@ -383,9 +397,9 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         public async Task TestWorkLease_WhenTwoWpHaveSameInstanceIdAndSamePriority_TheyShouldBothWin()
         {
             //arrange
-            List<IWorkerLease> expired = new List<IWorkerLease>();
+            ConcurrentBag<IWorkerLease> expired = new ConcurrentBag<IWorkerLease>();
             Dictionary<IWorkerLease, ManualResetEvent> manualResetEventsDictionary = new Dictionary<IWorkerLease, ManualResetEvent>();
-            List<Guid> winners = new List<Guid>();
+            ConcurrentBag<Guid> winners = new ConcurrentBag<Guid>();
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
 
             void OnWorkerProcessOnLeaseAllocated(object sender, LeaseAllocatedEventArgs args)
@@ -439,9 +453,9 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         public async Task TestWorkLease_WhenTwoWpHaveSameInstanceIdAndDifferentPriority_TheyShouldBothWin()
         {
             //arrange
-            List<IWorkerLease> expired = new List<IWorkerLease>();
+            ConcurrentBag<IWorkerLease> expired = new ConcurrentBag<IWorkerLease>();
             Dictionary<IWorkerLease, ManualResetEvent> manualResetEventsDictionary = new Dictionary<IWorkerLease, ManualResetEvent>();
-            List<Guid> winners = new List<Guid>();
+            ConcurrentBag<Guid> winners = new ConcurrentBag<Guid>();
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
 
             void OnWorkerProcessOnLeaseAllocated(object sender, LeaseAllocatedEventArgs args)
@@ -516,7 +530,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 {
                     _output.WriteLine($"[{DateTime.UtcNow}] Lease allocated to [{workerLease.InstanceId}] Expiry: [{args.Expiry}]");
 
-                    _allocatedList.Add((IWorkerLease)sender,options.Value.Priority);
+                    _allocatedList.TryAdd((IWorkerLease)sender,options.Value.Priority);
                 };
 
                 workerLease.LeaseExpired += (sender, args) =>
