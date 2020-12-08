@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,7 +7,6 @@ namespace EShopworld.WorkerProcess.Infrastructure
     /// <summary>
     /// An implementation of the <see cref="ITimer"/> instance
     /// </summary>
-    [ExcludeFromCodeCoverage]
     public class SystemTimer : ITimer
     {
         // To detect redundant calls
@@ -24,13 +22,13 @@ namespace EShopworld.WorkerProcess.Infrastructure
         /// <inheritdoc />
         public async Task ExecutePeriodicallyIn(TimeSpan interval,Func<Task<TimeSpan>> executor)
         {
-            await Task.Delay(interval).ContinueWith(async t=>
+            await Task.Delay(interval,_cancellationTokenSource.Token).ContinueWith(async t=>
             {
                 while (!_cancellationTokenSource.Token.IsCancellationRequested)
                 {
                     var newInterval = await executor();
 
-                    await Task.Delay(newInterval, _cancellationTokenSource.Token);
+                    await Task.Delay(newInterval, _cancellationTokenSource.Token).ConfigureAwait(false);
                 }
             }).ConfigureAwait(false);
         }
