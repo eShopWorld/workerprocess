@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using System.Timers;
 using Eshopworld.Core;
 using EShopworld.WorkerProcess.Configuration;
 using EShopworld.WorkerProcess.Exceptions;
@@ -11,7 +10,6 @@ using EShopworld.WorkerProcess.Infrastructure;
 using EShopworld.WorkerProcess.Stores;
 using EShopworld.WorkerProcess.Telemetry;
 using Microsoft.Extensions.Options;
-using Nito.AsyncEx;
 
 namespace EShopworld.WorkerProcess
 {
@@ -22,7 +20,7 @@ namespace EShopworld.WorkerProcess
         private readonly IBigBrother _telemetry;
         private readonly ITimer _timer;
         private readonly ISlottedInterval _slottedInterval;
-
+        
         internal ILease CurrentLease;
 
         public WorkerLease(
@@ -54,10 +52,7 @@ namespace EShopworld.WorkerProcess
         {
             OperationTelemetryHandler(() =>
             {
-                _timer.Elapsed += TimerElapsed;
-
-                _timer.Interval = _slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval).TotalMilliseconds;
-                _timer.Start();
+                _timer.ExecutePeriodicallyIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),LeaseAsync);
             });
         }
 
@@ -67,8 +62,6 @@ namespace EShopworld.WorkerProcess
             OperationTelemetryHandler(() =>
             {
                 _timer.Stop();
-
-                _timer.Elapsed -= TimerElapsed;
             });
         }
 
@@ -78,47 +71,27 @@ namespace EShopworld.WorkerProcess
         /// <inheritdoc />
         public event EventHandler<EventArgs> LeaseExpired;
 
-        internal async Task LeaseAsync()
+        internal async Task<TimeSpan> LeaseAsync()
         {
-            _timer.Stop();
-
-            try
+            if (CheckLeaseExpired(CurrentLease))
             {
-                if (CheckLeaseExpired(CurrentLease))
-                {
-                    await _leaseAllocator.ReleaseLeaseAsync(CurrentLease).ConfigureAwait(false);
+                await _leaseAllocator.ReleaseLeaseAsync(CurrentLease).ConfigureAwait(false);
 
-                    OnLeaseExpired();
-                }
-
-                CurrentLease = await _leaseAllocator.AllocateLeaseAsync(InstanceId).ConfigureAwait(false);
-
-                if (CurrentLease != null)
-                    OnLeaseAllocated(CurrentLease.LeasedUntil.GetValueOrDefault());
-
-                if(CurrentLease?.LeasedUntil.HasValue ?? false)
-                {
-                    _timer.Interval = CurrentLease.Interval.Value.TotalMilliseconds;
-                }
-                else
-                {
-                    _timer.Interval = _slottedInterval.Calculate(
-                        CurrentLease?.LeasedUntil ?? ServerDateTime.UtcNow,
-                        _options.Value.LeaseInterval).TotalMilliseconds;
-                }
+                OnLeaseExpired();
             }
-            finally
-            {
-                _timer.Start();
-            }
-        }
 
-        private void TimerElapsed(object sender, ElapsedEventArgs e)
-        {
-            OperationTelemetryHandler(() =>
+            CurrentLease = await _leaseAllocator.AllocateLeaseAsync(InstanceId).ConfigureAwait(false);
+
+            if (CurrentLease != null)
+                OnLeaseAllocated(CurrentLease.LeasedUntil.GetValueOrDefault());
+
+            if (CurrentLease?.LeasedUntil.HasValue ?? false)
             {
-                AsyncContext.Run(async () => { await LeaseAsync().ConfigureAwait(false); });
-            });
+                return CurrentLease.LeasedUntil.Value.Subtract(ServerDateTime.UtcNow);
+            }
+            return _slottedInterval.Calculate(
+                CurrentLease?.LeasedUntil ?? ServerDateTime.UtcNow,
+                _options.Value.LeaseInterval);
         }
 
         private bool CheckLeaseExpired(ILease lease)

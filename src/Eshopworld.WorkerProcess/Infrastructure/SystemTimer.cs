@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
-using System.Timers;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace EShopworld.WorkerProcess.Infrastructure
 {
@@ -10,44 +11,46 @@ namespace EShopworld.WorkerProcess.Infrastructure
     [ExcludeFromCodeCoverage]
     public class SystemTimer : ITimer
     {
-        private readonly Timer _timer;
+        // To detect redundant calls
+        private bool _disposed = false;
+
+        private readonly CancellationTokenSource _cancellationTokenSource;
 
         public SystemTimer()
         {
-            _timer = new Timer();
-            _timer.Elapsed += TimerElapsed;
+            _cancellationTokenSource = new CancellationTokenSource();
         }
 
         /// <inheritdoc />
-        public double Interval
+        public async Task ExecutePeriodicallyIn(TimeSpan interval,Func<Task<TimeSpan>> executor)
         {
-            get => _timer.Interval;
-            set => _timer.Interval = value;
-        }
+            await Task.Delay(interval).ContinueWith(async t=>
+            {
+                while (!_cancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    var newInterval = await executor();
 
-        /// <inheritdoc />
-        public event EventHandler<ElapsedEventArgs> Elapsed;
-
-        /// <inheritdoc />
-        public void Start()
-        {
-            _timer.Start();
+                    await Task.Delay(newInterval, _cancellationTokenSource.Token);
+                }
+            }).ConfigureAwait(false);
         }
 
         /// <inheritdoc />
         public void Stop()
         {
-            _timer.Stop();
+            _cancellationTokenSource.Cancel();
         }
 
-        private void TimerElapsed(object sender, ElapsedEventArgs e)
-        {
-            Elapsed?.Invoke(this, e);
-        }
-
+        // Public implementation of Dispose pattern callable by consumers.
         public void Dispose()
         {
-            _timer?.Dispose();
+            if (_disposed)
+            {
+                return;
+            }
+
+            _cancellationTokenSource.Dispose();
+            _disposed = true;
         }
     }
 }
