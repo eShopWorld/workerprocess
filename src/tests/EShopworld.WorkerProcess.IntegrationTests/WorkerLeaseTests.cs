@@ -29,10 +29,11 @@ namespace EShopworld.WorkerProcess.IntegrationTests
     {
         private readonly ServiceProvider _serviceProvider;
         private readonly ITestOutputHelper _output;
+        private readonly ConcurrentDictionary<IWorkerLease, int> _workerLeases;
+        private readonly ManualResetEvent _leaseAllocatedEvent;
+        private readonly ManualResetEvent _leaseExpiredEvent;
         private readonly ConcurrentDictionary<IWorkerLease, int> _allocatedList;
         private readonly ConcurrentBag<IWorkerLease> _expiredList;
-        private readonly List<IWorkerLease> _workerLeases;
-        private readonly List<ManualResetEvent> _manualResetEvents;
         private readonly object _lock = new object();
 
         public WorkerLeaseTests(ITestOutputHelper output)
@@ -47,10 +48,11 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             _serviceProvider = serviceCollection.BuildServiceProvider();
 
-            _workerLeases = new List<IWorkerLease>();
+            _workerLeases = new ConcurrentDictionary<IWorkerLease, int>();
+            _leaseAllocatedEvent = new ManualResetEvent(false);
+            _leaseExpiredEvent = new ManualResetEvent(false);
             _allocatedList = new ConcurrentDictionary<IWorkerLease, int>();
             _expiredList = new ConcurrentBag<IWorkerLease>();
-            _manualResetEvents = new List<ManualResetEvent>();
             _output = output;
         }
 
@@ -63,18 +65,24 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             // Arrange
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
-            var workerLease = _serviceProvider.GetService<IWorkerLease>();
-            
+            var workerLease = CreateWorkerLease(Options.Create(new WorkerLeaseOptions
+            {
+                LeaseInterval = new TimeSpan(0, 0, 30),
+                Priority = 1,
+                WorkerType = "TestSingleLease",
+
+            }));
+
             // Act
             await leaseStore.InitialiseAsync();
-            
+
             workerLease.LeaseAllocated += (sender, args) =>
             {
                 _output.WriteLine($"[{DateTime.UtcNow}] Lease allocated until [{args.Expiry}]");
 
                 leaseAllocated = true;
             };
-            
+
             workerLease.LeaseExpired += (sender, args) =>
             {
                 _output.WriteLine($"[{DateTime.UtcNow}] Lease expired");
@@ -105,7 +113,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             // Act
             await leaseStore.InitialiseAsync();
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var (workerLease, _) in _workerLeases)
             {
                 Thread.Sleep(new TimeSpan(0, 0, 1) * r.Next(10));
 
@@ -114,9 +122,9 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 _output.WriteLine($"Starting [{workerLease.InstanceId}]");
             }
 
-            WaitHandle.WaitAny(_manualResetEvents.ToArray(), new TimeSpan(0, 2, 30));
+            _leaseExpiredEvent.WaitOne(new TimeSpan(0, 2, 30));
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var (workerLease, _) in _workerLeases)
             {
                 workerLease.StopLeasing();
 
@@ -142,17 +150,17 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             // Act
             await leaseStore.InitialiseAsync();
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var (workerLease, _) in _workerLeases)
             {
                 workerLease.StartLeasing();
 
                 _output.WriteLine($"[{DateTime.UtcNow}] Starting [{workerLease.InstanceId}]");
             }
 
-            WaitHandle.WaitAny(_manualResetEvents.ToArray(), new TimeSpan(0, 2, 30));
-            
+            _leaseExpiredEvent.WaitOne(new TimeSpan(0, 2, 30));
 
-            foreach (var workerLease in _workerLeases)
+
+            foreach (var (workerLease, _) in _workerLeases)
             {
                 workerLease.StopLeasing();
 
@@ -166,13 +174,13 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 _allocatedList.Select(wp => wp.Value).Should().AllBeEquivalentTo(0);
                 _expiredList.Should().HaveCount(1);
             }
-           
+
         }
 
         [Fact, IsIntegration]
         public async Task TestMultipleWorkLeasesSamePriority()
         {
-           
+
             // Arrange
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
 
@@ -183,7 +191,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             // Act
             await leaseStore.InitialiseAsync();
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var (workerLease, _) in _workerLeases)
             {
                 Thread.Sleep(new TimeSpan(0, 0, 1) * r.Next(10));
 
@@ -192,9 +200,9 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 _output.WriteLine($"Starting [{workerLease.InstanceId}]");
             }
 
-            WaitHandle.WaitAny(_manualResetEvents.ToArray(), new TimeSpan(0, 2, 30));
+            _leaseExpiredEvent.WaitOne(new TimeSpan(0, 2, 30));
 
-            foreach (var workerLease in _workerLeases)
+            foreach (var (workerLease, _) in _workerLeases)
             {
                 workerLease.StopLeasing();
 
@@ -511,7 +519,111 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             expired.Should().HaveCount(2);
         }
 
-        private void SetupWorkerLeases(int leaseCount, Func<int,int> assignPriorityFunc, string workerType= "workertype")
+        [Fact, IsIntegration]
+        public async Task WorkerLease_MultipleWorkersPerInstanceId_LeaseAllocatedToAllWorkersWithSameInstanceId()
+        {
+            // Arrange
+            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            for (var i = 0; i < 3; i++)
+            {
+                var iPriority = i;
+                // setup 3 workers for each priority
+                SetupWorkerLeases(3, _ => iPriority, "WorkerLease_MultipleWorkersPerInstanceId_LeaseAllocatedToAllWorkersWithSameInstanceId", Guid.NewGuid());
+            }
+
+            // Act
+            await leaseStore.InitialiseAsync();
+
+            Parallel.ForEach(_workerLeases, (workerLease) =>
+            {
+                workerLease.Key.StartLeasing();
+
+                _output.WriteLine($"Starting [{workerLease.Key.InstanceId}]");
+            });
+
+            _leaseAllocatedEvent.WaitOne(TimeSpan.FromMinutes(1));
+            _leaseExpiredEvent.WaitOne(TimeSpan.FromMinutes(2));
+            await Task.Delay(TimeSpan.FromMilliseconds(1000));
+
+            foreach (var workerLease in _workerLeases)
+            {
+                workerLease.Key.StopLeasing();
+
+                _output.WriteLine($"Stopping [{workerLease.Key.InstanceId}]");
+            }
+
+            // Assert
+            // assert that the lease is assigned to the same instances 
+            using (new AssertionScope())
+            {
+                _allocatedList.Should().HaveCount(3);
+                _allocatedList.Select(lease => lease.Key.InstanceId).Distinct().Should().HaveCount(1);
+                // priority of the workerProcesses that got the lease should be 0
+                _allocatedList.Select(lease => lease.Value).Should().AllBeEquivalentTo(0);
+                _expiredList.Should().HaveCount(3);
+            }
+        }
+
+        [Fact, IsIntegration]
+        public async Task WorkerLease_MultipleWorkersPerInstanceIdStaggeredStart_LeaseAllocatedToAllWorkersWithSameInstanceId()
+        {
+            // Arrange
+            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+
+            var priorities = new Dictionary<Guid, int>
+            {
+                [new Guid("EA8E0D8A-274A-4E7F-B63B-471C45EA7ECE")] = 0,
+                [new Guid("B4394200-D577-4EBE-85B3-2E2378692174")] = 1,
+                [new Guid("4BB66678-EB4F-47C1-9211-47F740F8644B")] = 2
+            };
+
+
+            Parallel.ForEach(priorities, (i) =>
+            {
+                var priority = i;
+                // setup 3 workers for each priority
+                SetupWorkerLeases(3, _ => priority.Value, "WorkerLease_MultipleWorkersPerInstanceIdStaggeredStart_LeaseAllocatedToAllWorkersWithSameInstanceId", priority.Key);
+            });
+
+            // Act
+            await leaseStore.InitialiseAsync();
+
+            void StartFunc(KeyValuePair<IWorkerLease, int> workerLease)
+            {
+                workerLease.Key.StartLeasing();
+                _output.WriteLine($"[{DateTime.UtcNow}] Starting [{workerLease.Key.InstanceId}, priority {workerLease.Value}]");
+            }
+
+            // start worker processes priority 1 and 2 first
+            Parallel.ForEach(_workerLeases.Where(kv => kv.Value != 0), StartFunc);
+
+            _leaseAllocatedEvent.WaitOne(TimeSpan.FromMinutes(1));
+
+            // wait and start worker processes with priority 0
+            Parallel.ForEach(_workerLeases.Where(kv => kv.Value == 0), StartFunc);
+            
+            _leaseExpiredEvent.WaitOne(TimeSpan.FromSeconds(30));
+            _leaseAllocatedEvent.WaitOne(TimeSpan.FromMinutes(1));
+            _leaseExpiredEvent.WaitOne(TimeSpan.FromSeconds(30));
+             
+            await Task.Delay(TimeSpan.FromMilliseconds(100));
+            foreach (var (workerLease, _) in _workerLeases)
+            {
+                workerLease.StopLeasing();
+                _output.WriteLine($"[{DateTime.UtcNow}] Stopping [{workerLease.InstanceId}]");
+            }
+
+            // Assert
+            using (new AssertionScope())
+            {
+                _allocatedList.Should().HaveCount(6);
+                _allocatedList.Select(lease => lease.Key.InstanceId).Distinct().Should().HaveCount(2);
+                _allocatedList.Select(lease => lease.Value).Should().BeEquivalentTo(new List<int> { 1, 1, 1, 0, 0, 0 });
+                _expiredList.Should().HaveCount(6);
+            }
+        }
+
+        private void SetupWorkerLeases(int leaseCount, Func<int, int> assignPriorityFunc, string workerType = "workertype", Guid? instanceId = null)
         {
             for (int i = 0; i < leaseCount; i++)
             {
@@ -519,41 +631,45 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 {
                     LeaseInterval = new TimeSpan(0, 0, 30),
                     Priority = assignPriorityFunc(i),
+                    InstanceId = instanceId,
                     WorkerType = workerType
                 });
 
                 var workerLease = CreateWorkerLease(options);
-                var manualResetEvent = new ManualResetEvent(false);
-                _manualResetEvents.Add(manualResetEvent);
+
+
 
                 workerLease.LeaseAllocated += (sender, args) =>
                 {
                     _output.WriteLine($"[{DateTime.UtcNow}] Lease allocated to [{workerLease.InstanceId}] Expiry: [{args.Expiry}]");
+                    _allocatedList.TryAdd((IWorkerLease)sender, options.Value.Priority);
 
-                    _allocatedList.TryAdd((IWorkerLease)sender,options.Value.Priority);
+                    _leaseAllocatedEvent.Set();
+                    _leaseAllocatedEvent.Reset();
                 };
 
                 workerLease.LeaseExpired += (sender, args) =>
                 {
                     _output.WriteLine($"[{DateTime.UtcNow}] Lease expired for [{workerLease.InstanceId}]");
-
                     _expiredList.Add((IWorkerLease)sender);
-                    manualResetEvent.Set();
-                    manualResetEvent.Reset();
+
+                    _leaseExpiredEvent.Set();
+                    _leaseExpiredEvent.Reset();
                 };
 
-                _workerLeases.Add(workerLease);
+                _workerLeases.TryAdd(workerLease, options.Value.Priority);
             }
         }
+
         private WorkerLease CreateWorkerLease(IOptions<WorkerLeaseOptions> options)
         {
             var telemetry = _serviceProvider.GetService<IBigBrother>();
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
             var slottedInterval = _serviceProvider.GetService<ISlottedInterval>();
-            var timer= _serviceProvider.GetService<ITimer>();
+            var timer = _serviceProvider.GetService<ITimer>();
             var leaseAllocator = new LeaseAllocator(telemetry, leaseStore, slottedInterval, options);
 
-            var workerLease = new WorkerLease(telemetry, leaseAllocator,  timer, slottedInterval, options);
+            var workerLease = new WorkerLease(telemetry, leaseAllocator, timer, slottedInterval, options);
             return workerLease;
         }
         private void ConfigureServices(IServiceCollection services, IConfigurationRoot configuration)
