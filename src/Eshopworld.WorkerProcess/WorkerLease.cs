@@ -75,8 +75,6 @@ namespace EShopworld.WorkerProcess
         {
             if (CheckLeaseExpired(CurrentLease))
             {
-                await _leaseAllocator.ReleaseLeaseAsync(CurrentLease).ConfigureAwait(false);
-
                 OnLeaseExpired();
             }
 
