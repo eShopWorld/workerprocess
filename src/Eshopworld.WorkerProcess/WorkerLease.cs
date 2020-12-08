@@ -127,7 +127,7 @@ namespace EShopworld.WorkerProcess
                 _telemetry.Publish(new LeaseExceptionEvent(ex));
 
                 throw new WorkerLeaseException(
-                    $"An unhandled exception occured executing operation [{memberName}]", ex);
+                    $"An unhandled exception occurred executing operation [{memberName}]", ex);
             }
         }
     }
