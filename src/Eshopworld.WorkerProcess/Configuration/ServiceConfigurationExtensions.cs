@@ -29,7 +29,7 @@ namespace EShopworld.WorkerProcess.Configuration
 
             services.TryAddSingleton<ILeaseStore, CosmosDbLeaseStore>();
 
-            services.TryAddSingleton<ITimer, SystemTimer>();
+            services.TryAddTransient<ITimer, SystemTimer>();
 
             services.TryAddSingleton<IWorkerLease, WorkerLease>();
         }

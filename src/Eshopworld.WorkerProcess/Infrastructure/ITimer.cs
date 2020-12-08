@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Timers;
+using System.Threading.Tasks;
 
 namespace EShopworld.WorkerProcess.Infrastructure
 {
@@ -9,14 +9,12 @@ namespace EShopworld.WorkerProcess.Infrastructure
     public interface ITimer : IDisposable
     {
         /// <summary>
-        /// The timer interval
+        /// Execute a func after some delay
         /// </summary>
-        double Interval { get; set; }
-
-        /// <summary>
-        /// The event that is fired when the timer is elapsed
-        /// </summary>
-        event EventHandler<ElapsedEventArgs> Elapsed;
+        /// <param name="interval"></param>
+        /// <param name="executor"></param>
+        /// <returns></returns>
+        Task ExecuteIn(TimeSpan interval, Func<Task> executor);
 
         /// <summary>
         /// Start the timer

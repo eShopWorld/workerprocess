@@ -103,20 +103,18 @@ namespace EShopworld.WorkerProcess.UnitTests
             // Assert
             _mockSlottedInterval.Verify(m => m.Calculate(new DateTime(2000, 1, 1, 12, 0, 0), TimeSpan.FromMinutes(2)));
             _mockTimer.Verify(m => m.Start(), Times.Once);
+            _mockTimer.Verify(m => m.ExecuteIn(It.IsAny<TimeSpan>(),_workerLease.LeaseAsync), Times.Once);
         }
 
         [Fact, IsUnit]
         public void TestStopLease()
         {
-            // Arrange
-            _mockTimer.SetupRemove(m => m.Elapsed -= It.IsAny<EventHandler<ElapsedEventArgs>>());
-
+           
             // Act
             _workerLease.StopLeasing();
 
             // Assert
             _mockTimer.Verify(m => m.Stop(), Times.Once);
-            _mockTimer.VerifyRemove(m => m.Elapsed -= It.IsAny<EventHandler<ElapsedEventArgs>>());
         }
 
         [Fact, IsUnit]
@@ -131,7 +129,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             };
             var workerLease = new WorkerLease(
                 _mockTelemetry.Object,
-                _mockLeaseAllocator.Object,
+                _mockLeaseAllocator.Object, 
                 _mockTimer.Object,
                 _mockSlottedInterval.Object,
                 Options.Create(options));

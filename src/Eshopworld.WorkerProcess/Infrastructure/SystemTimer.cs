@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
-using System.Timers;
+using System.Threading;
+using System.Threading.Tasks;
+using EShopworld.WorkerProcess.Exceptions;
 
 namespace EShopworld.WorkerProcess.Infrastructure
 {
@@ -10,44 +12,46 @@ namespace EShopworld.WorkerProcess.Infrastructure
     [ExcludeFromCodeCoverage]
     public class SystemTimer : ITimer
     {
-        private readonly Timer _timer;
+        // To detect redundant calls
+        private bool _disposed = false;
 
-        public SystemTimer()
+        private CancellationTokenSource _cancellationTokenSource;
+
+        /// <inheritdoc />
+        public async Task ExecuteIn(TimeSpan interval,Func<Task> executor)
         {
-            _timer = new Timer();
-            _timer.Elapsed += TimerElapsed;
+            await Task.Delay(interval).ContinueWith(async t=>
+            {
+                if (!_cancellationTokenSource.IsCancellationRequested)
+                {
+                    await executor();
+                }
+            });
         }
 
-        /// <inheritdoc />
-        public double Interval
-        {
-            get => _timer.Interval;
-            set => _timer.Interval = value;
-        }
-
-        /// <inheritdoc />
-        public event EventHandler<ElapsedEventArgs> Elapsed;
-
-        /// <inheritdoc />
         public void Start()
         {
-            _timer.Start();
+            _cancellationTokenSource = new CancellationTokenSource();
         }
 
         /// <inheritdoc />
         public void Stop()
         {
-            _timer.Stop();
+            if(_cancellationTokenSource==null)
+                throw new WorkerLeaseException("Timer was not started!");
+            _cancellationTokenSource.Cancel();
         }
 
-        private void TimerElapsed(object sender, ElapsedEventArgs e)
-        {
-            Elapsed?.Invoke(this, e);
-        }
-
+        // Public implementation of Dispose pattern callable by consumers.
         public void Dispose()
         {
-            _timer?.Dispose();
+            if (_disposed || _cancellationTokenSource==null)
+            {
+                return;
+            }
+
+            _cancellationTokenSource.Dispose();
+            _disposed = true;
         }
     }
 }
