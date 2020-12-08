@@ -2,7 +2,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
-using EShopworld.WorkerProcess.Exceptions;
 
 namespace EShopworld.WorkerProcess.Infrastructure
 {
