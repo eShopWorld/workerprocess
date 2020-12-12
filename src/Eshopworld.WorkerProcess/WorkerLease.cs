@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -52,9 +51,8 @@ namespace EShopworld.WorkerProcess
         /// <inheritdoc />
         public void StartLeasing()
         {
-            _timer.ExecutePeriodicallyIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval), LeaseAsync)
-                .ContinueWith((t, state) => OnLeaseError(t.Exception), null, TaskContinuationOptions.OnlyOnFaulted)
-                .ContinueWith((t, state) => OnLeaseStopped(), null, TaskContinuationOptions.OnlyOnCanceled);
+            _timer.ExecutePeriodicallyIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),
+                    (token)=> OperationTelemetryHandler(LeaseAsync,token));
         }
 
         /// <inheritdoc />
@@ -107,20 +105,37 @@ namespace EShopworld.WorkerProcess
             LeaseAllocated?.Invoke(this, new LeaseAllocatedEventArgs(leaseExpiry));
         }
 
-        private void OnLeaseStopped()
-        {
-            _telemetry.Publish(new LeaseStoppedEvent(InstanceId,_options.Value.WorkerType,_options.Value.Priority));
-        }
 
-        private void OnLeaseError(AggregateException ex)
+        [DebuggerStepThrough]
+        [ExcludeFromCodeCoverage]
+        private async Task<TimeSpan> OperationTelemetryHandler(Func<CancellationToken, Task<TimeSpan>> operation, CancellationToken token, [CallerMemberName] string memberName = "")
         {
-            _timer.Dispose();
-            var aggregateException = ex.Flatten();
-            
-            _telemetry.Publish(new LeaseExceptionEvent(InstanceId,_options.Value.WorkerType,_options.Value.Priority,
-                string.Join('|',aggregateException.InnerExceptions.Select(e=>e.Message))));
+            try
+            {
+                var operationEvent = new OperationTelemetryEvent(memberName);
 
-            throw new WorkerLeaseException($"An unhandled exception occurred :", aggregateException);
+                var result = await operation(token).ConfigureAwait(false);
+
+                _telemetry.Publish(operationEvent);
+
+                return result;
+            }
+            catch (OperationCanceledException _)
+            {
+                _telemetry.Publish(new LeaseStoppedEvent(InstanceId, _options.Value.WorkerType, _options.Value.Priority));
+
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _timer.Dispose();
+
+                _telemetry.Publish(new LeaseExceptionEvent(InstanceId, _options.Value.WorkerType, _options.Value.Priority,
+                    ex.Message));
+
+                throw new WorkerLeaseException(
+                    $"An unhandled exception occured executing operation [{memberName}]", ex);
+            }
         }
 
     }
