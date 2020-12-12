@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Eshopworld.Core;
 using EShopworld.WorkerProcess.Configuration;
@@ -30,7 +31,7 @@ namespace EShopworld.WorkerProcess
         }
 
         /// <inheritdoc />
-        public async Task<ILease> AllocateLeaseAsync(Guid instanceId)
+        public async Task<ILease> AllocateLeaseAsync(Guid instanceId, CancellationToken token)
         {
             _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                 _options.Value.Priority, $"Lease allocation started for instance {instanceId}"));
@@ -58,8 +59,7 @@ namespace EShopworld.WorkerProcess
             }).ConfigureAwait(false);
 
             // backoff to allow other workers to add their lease request
-            await Task.Delay(_options.Value.ElectionDelay);
-
+            await Task.Delay(_options.Value.ElectionDelay,token);
             _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
                 _options.Value.Priority, $"Leader election starting"));
 

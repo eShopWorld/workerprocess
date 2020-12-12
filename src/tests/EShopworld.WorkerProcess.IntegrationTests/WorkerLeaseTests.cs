@@ -106,7 +106,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         {
             // Arrange
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
-            SetupWorkerLeases(3, i => i);
+            SetupWorkerLeases(3, i => i, "TestMultipleWorkLeases");
 
             Random r = new Random();
 
@@ -184,7 +184,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             // Arrange
             var leaseStore = _serviceProvider.GetService<ILeaseStore>();
 
-            SetupWorkerLeases(3, i => 0);
+            SetupWorkerLeases(3, i => 0, "TestMultipleWorkLeasesSamePriority");
 
             Random r = new Random();
 

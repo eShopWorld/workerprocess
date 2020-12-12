@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Eshopworld.Core;
 using EShopworld.WorkerProcess.Configuration;
@@ -50,19 +52,15 @@ namespace EShopworld.WorkerProcess
         /// <inheritdoc />
         public void StartLeasing()
         {
-            OperationTelemetryHandler(() =>
-            {
-                _timer.ExecutePeriodicallyIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),LeaseAsync);
-            });
+            _timer.ExecutePeriodicallyIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval), LeaseAsync)
+                .ContinueWith((t, state) => OnLeaseError(t.Exception), null, TaskContinuationOptions.OnlyOnFaulted)
+                .ContinueWith((t, state) => OnLeaseStopped(), null, TaskContinuationOptions.OnlyOnCanceled);
         }
 
         /// <inheritdoc />
         public void StopLeasing()
         {
-            OperationTelemetryHandler(() =>
-            {
-                _timer.Stop();
-            });
+            _timer.Stop();
         }
 
         /// <inheritdoc />
@@ -71,14 +69,15 @@ namespace EShopworld.WorkerProcess
         /// <inheritdoc />
         public event EventHandler<EventArgs> LeaseExpired;
 
-        internal async Task<TimeSpan> LeaseAsync()
+        internal async Task<TimeSpan> LeaseAsync(CancellationToken token)
         {
+
             if (CheckLeaseExpired(CurrentLease))
             {
                 OnLeaseExpired();
             }
 
-            CurrentLease = await _leaseAllocator.AllocateLeaseAsync(InstanceId).ConfigureAwait(false);
+            CurrentLease = await _leaseAllocator.AllocateLeaseAsync(InstanceId,token).ConfigureAwait(false);
 
             if (CurrentLease != null)
                 OnLeaseAllocated(CurrentLease.LeasedUntil.GetValueOrDefault());
@@ -108,27 +107,21 @@ namespace EShopworld.WorkerProcess
             LeaseAllocated?.Invoke(this, new LeaseAllocatedEventArgs(leaseExpiry));
         }
 
-        [DebuggerStepThrough]
-        [ExcludeFromCodeCoverage]
-        private void OperationTelemetryHandler(
-            Action operation,
-            [CallerMemberName] string memberName = "")
+        private void OnLeaseStopped()
         {
-            try
-            {
-                var operationEvent = new OperationTelemetryEvent(memberName);
-
-                operation();
-
-                _telemetry.Publish(operationEvent);
-            }
-            catch (Exception ex)
-            {
-                _telemetry.Publish(new LeaseExceptionEvent(ex));
-
-                throw new WorkerLeaseException(
-                    $"An unhandled exception occurred executing operation [{memberName}]", ex);
-            }
+            _telemetry.Publish(new LeaseStoppedEvent(InstanceId,_options.Value.WorkerType,_options.Value.Priority));
         }
+
+        private void OnLeaseError(AggregateException ex)
+        {
+            _timer.Dispose();
+            var aggregateException = ex.Flatten();
+            
+            _telemetry.Publish(new LeaseExceptionEvent(InstanceId,_options.Value.WorkerType,_options.Value.Priority,
+                string.Join('|',aggregateException.InnerExceptions.Select(e=>e.Message))));
+
+            throw new WorkerLeaseException($"An unhandled exception occurred :", aggregateException);
+        }
+
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Eshopworld.Core;
 using Eshopworld.Tests.Core;
@@ -55,7 +56,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             });
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(Guid.NewGuid());
+            var result = await _leaseAllocator.AllocateLeaseAsync(Guid.NewGuid(), It.IsAny<CancellationToken>());
 
             // Assert
             result.Should().BeNull();
@@ -84,7 +85,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             // Act
 
-            await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value);
+            await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value,It.IsAny<CancellationToken>());
 
             // Assert
             _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Once);
@@ -113,7 +114,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 .ReturnsAsync(new LeaseStoreResult(new Lease { InstanceId = Guid.Empty}, true));
 
             // Act
-            await _leaseAllocator.AllocateLeaseAsync(instanceId);
+            await _leaseAllocator.AllocateLeaseAsync(instanceId, It.IsAny<CancellationToken>());
 
             //Assert
            
@@ -149,7 +150,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             _mockStore.Setup(m => m.TryUpdateLeaseAsync(It.IsAny<ILease>()))
                 .ReturnsAsync(new LeaseStoreResult(lease, true));
             // Act
-            await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value);
+            await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value, It.IsAny<CancellationToken>());
 
             //Assert
 
@@ -193,7 +194,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId);
+            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId, It.IsAny<CancellationToken>());
 
             // Assert
             result.Should().BeNull();
@@ -240,7 +241,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId);
+            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId, It.IsAny<CancellationToken>());
 
             // Assert
             result.Should().Be(null);
@@ -268,7 +269,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 .ReturnsAsync(testLease);
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId);
+            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId, It.IsAny<CancellationToken>());
 
             // Assert
             result.Should().Be(testLease);
@@ -313,7 +314,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 .ReturnsAsync(instanceId);
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId);
+            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId, It.IsAny<CancellationToken>());
 
             // Assert
             result.Should().Be(testLease);
@@ -350,7 +351,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value);
+            var result = await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value, It.IsAny<CancellationToken>());
 
             // Assert
             result.Should().Be(lease);
@@ -387,7 +388,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 .ReturnsAsync(new LeaseStoreResult(lease, true));
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value);
+            var result = await _leaseAllocator.AllocateLeaseAsync(lease.InstanceId.Value, It.IsAny<CancellationToken>());
 
             // Assert
             result.Should().Be(lease);
@@ -418,7 +419,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId);
+            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId, It.IsAny<CancellationToken>());
 
             // Assert
             result.Should().BeNull();
@@ -449,7 +450,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
 
             // Act
-            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId);
+            var result = await _leaseAllocator.AllocateLeaseAsync(instanceId, It.IsAny<CancellationToken>());
 
             // Assert
             result.Should().BeNull();

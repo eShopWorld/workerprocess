@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Eshopworld.Core;
 using Eshopworld.Tests.Core;
@@ -61,7 +62,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             _workerLease.LeaseExpired += (sender, args) => { eventFired = true; };
 
             // Act
-            await _workerLease.LeaseAsync();
+            await _workerLease.LeaseAsync(It.IsAny<CancellationToken>());
 
             // Assert
             eventFired.Should().BeTrue();
@@ -75,7 +76,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             var eventFired = false;
 
             // Arrange
-            _mockLeaseAllocator.Setup(m => m.AllocateLeaseAsync(It.IsAny<Guid>()))
+            _mockLeaseAllocator.Setup(m => m.AllocateLeaseAsync(It.IsAny<Guid>(),It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new TestLease {
                     LeasedUntil = DateTime.UtcNow,
                     Interval = TimeSpan.FromMinutes(2)
@@ -84,7 +85,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             _workerLease.LeaseAllocated += (sender, args) => { eventFired = true; };
 
             // Act
-            await _workerLease.LeaseAsync();
+            await _workerLease.LeaseAsync(It.IsAny<CancellationToken>());
 
             // Assert
             eventFired.Should().BeTrue();
