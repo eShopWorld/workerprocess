@@ -134,7 +134,7 @@ namespace EShopworld.WorkerProcess
                     ex.Message));
 
                 throw new WorkerLeaseException(
-                    $"An unhandled exception occured executing operation [{memberName}]", ex);
+                    $"An unhandled exception occurred executing operation [{memberName}]", ex);
             }
         }
 
