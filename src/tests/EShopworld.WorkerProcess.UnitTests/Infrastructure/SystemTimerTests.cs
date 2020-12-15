@@ -41,20 +41,17 @@ namespace EShopworld.WorkerProcess.UnitTests.Infrastructure
         {
             //Arrange
             var timer = new SystemTimer();
-            var manualReset = new ManualResetEvent(false);
 
-            timer.Stop();
 
             //Act
             var isCalled = false; 
-            var task= timer.ExecutePeriodicallyIn(TimeSpan.Zero, (token) =>
+            var task= timer.ExecutePeriodicallyIn(TimeSpan.FromMilliseconds(500), (token) =>
             {
                 isCalled = true;
                 return Task.FromResult(TimeSpan.Zero);
             });
 
-            manualReset.WaitOne(TimeSpan.FromMilliseconds(200));
-
+            timer.Stop();
 
             //Assert
             Func<Task> act = async() => await task;

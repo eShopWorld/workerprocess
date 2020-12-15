@@ -36,7 +36,7 @@ namespace EShopworld.WorkerProcess.Infrastructure
             {
                 return;
             }
-            _cancellationTokenSource.Cancel();
+            _cancellationTokenSource?.Cancel();
         }
 
         // Public implementation of Dispose pattern callable by consumers.
@@ -47,7 +47,7 @@ namespace EShopworld.WorkerProcess.Infrastructure
                 return;
             }
 
-            _cancellationTokenSource.Dispose();
+            _cancellationTokenSource?.Dispose();
             _disposed = true;
         }
 
