@@ -12,16 +12,13 @@ namespace EShopworld.WorkerProcess.Infrastructure
         // To detect redundant calls
         private bool _disposed = false;
 
-        private readonly CancellationTokenSource _cancellationTokenSource;
+        private  CancellationTokenSource _cancellationTokenSource;
 
-        public SystemTimer()
-        {
-            _cancellationTokenSource = new CancellationTokenSource();
-        }
-
+       
         /// <inheritdoc />
         public async Task ExecutePeriodicallyIn(TimeSpan interval,Func<CancellationToken,Task<TimeSpan>> executor)
         {
+            _cancellationTokenSource = new CancellationTokenSource();
             _cancellationTokenSource.Token.ThrowIfCancellationRequested();
             await Task.Delay(interval, _cancellationTokenSource.Token).ConfigureAwait(false);
             while (!_cancellationTokenSource.IsCancellationRequested)
