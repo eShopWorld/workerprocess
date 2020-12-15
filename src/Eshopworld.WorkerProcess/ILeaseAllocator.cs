@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using EShopworld.WorkerProcess.Stores;
 
@@ -11,7 +12,7 @@ namespace EShopworld.WorkerProcess
         /// </summary>
         /// <param name="instanceId">The instance id to allocate the <see cref="ILease"/></param>
         /// <returns>A <see cref="ILease"/></returns>
-        Task<ILease> AllocateLeaseAsync(Guid instanceId);
+        Task<ILease> AllocateLeaseAsync(Guid instanceId, CancellationToken token);
         /// <summary>
         /// Release a <see cref="ILease"/> instance
         /// </summary>

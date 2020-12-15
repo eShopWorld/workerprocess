@@ -12,31 +12,31 @@ namespace EShopworld.WorkerProcess.Infrastructure
         // To detect redundant calls
         private bool _disposed = false;
 
-        private readonly CancellationTokenSource _cancellationTokenSource;
+        private  CancellationTokenSource _cancellationTokenSource;
 
-        public SystemTimer()
+       
+        /// <inheritdoc />
+        public async Task ExecutePeriodicallyIn(TimeSpan interval,Func<CancellationToken,Task<TimeSpan>> executor)
         {
             _cancellationTokenSource = new CancellationTokenSource();
-        }
-
-        /// <inheritdoc />
-        public async Task ExecutePeriodicallyIn(TimeSpan interval,Func<Task<TimeSpan>> executor)
-        {
-            await Task.Delay(interval,_cancellationTokenSource.Token).ContinueWith(async t=>
+            _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+            await Task.Delay(interval, _cancellationTokenSource.Token).ConfigureAwait(false);
+            while (!_cancellationTokenSource.IsCancellationRequested)
             {
-                while (!_cancellationTokenSource.Token.IsCancellationRequested)
-                {
-                    var newInterval = await executor();
+                var newInterval = await executor(_cancellationTokenSource.Token).ConfigureAwait(false);
 
-                    await Task.Delay(newInterval, _cancellationTokenSource.Token).ConfigureAwait(false);
-                }
-            }).ConfigureAwait(false);
+                await Task.Delay(newInterval, _cancellationTokenSource.Token).ConfigureAwait(false);
+            }
         }
 
         /// <inheritdoc />
         public void Stop()
         {
-            _cancellationTokenSource.Cancel();
+            if (_disposed)
+            {
+                return;
+            }
+            _cancellationTokenSource?.Cancel();
         }
 
         // Public implementation of Dispose pattern callable by consumers.
@@ -47,8 +47,9 @@ namespace EShopworld.WorkerProcess.Infrastructure
                 return;
             }
 
-            _cancellationTokenSource.Dispose();
+            _cancellationTokenSource?.Dispose();
             _disposed = true;
         }
+
     }
 }

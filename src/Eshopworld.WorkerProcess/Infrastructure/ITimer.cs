@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace EShopworld.WorkerProcess.Infrastructure
@@ -14,7 +15,7 @@ namespace EShopworld.WorkerProcess.Infrastructure
         /// <param name="interval"></param>
         /// <param name="executor"></param>
         /// <returns></returns>
-        Task ExecutePeriodicallyIn(TimeSpan interval, Func<Task<TimeSpan>> executor);
+        Task ExecutePeriodicallyIn(TimeSpan interval, Func<CancellationToken, Task<TimeSpan>> executor);
 
         /// <summary>
         /// Stop the timer
