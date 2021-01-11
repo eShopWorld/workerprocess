@@ -47,33 +47,37 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         [Fact, IsIntegration]
         public void AcquireLock_ForNewLock_ShouldNotThrowException()
         {
-            var disLockStore = _serviceProvider.GetService<ICosmosDistributedLockStore>();
+            // Arrange
             Func<Task> act = async () =>
             {
-                using (await new DistributedLock(disLockStore).Acquire("test1"))
+                var distributedLock = _serviceProvider.GetService<IDistributedLock>();
+                using (await distributedLock.Acquire("test1"))
                 {
                     // create a recurring job
                 }
             };
 
+            // Act - Assert
             act.Should().NotThrow();
         }
 
         [Fact, IsIntegration]
         public void AcquireLock_ForExistingLock_ShouldThrowException()
         {
-            var disLockStore = _serviceProvider.GetService<ICosmosDistributedLockStore>();
+            // Arrange
             Func<Task> act = async () =>
             {
-                using (await new DistributedLock(disLockStore).Acquire("test2"))
+                var distributedLock = _serviceProvider.GetService<IDistributedLock>();
+                using (await distributedLock.Acquire("test2"))
                 {
-                    using (await new DistributedLock(disLockStore).Acquire("test2"))
+                    using (await distributedLock.Acquire("test2"))
                     {
                         // create a recurring job
                     }
                 }
             };
 
+            // Act - Assert
             act.Should().Throw<DistributedLockNotAcquiredException>();
         }
 
@@ -103,6 +107,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 cosmosDbConnectionOptions.Value.AccessKey));
 
             services.TryAddSingleton<ICosmosDistributedLockStore, CosmosDistributedLockStore>();
+            services.TryAddTransient<IDistributedLock, DistributedLock>();
 
         }
     }
