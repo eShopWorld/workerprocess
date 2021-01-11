@@ -10,16 +10,16 @@ using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Retry;
 
-namespace EShopworld.WorkerProcess.DistributedLock
+namespace EShopworld.WorkerProcess.CosmosDistributedLock
 {
-    public class DistributedLockStore : IDistributedLockStore
+    public class CosmosDistributedLockStore : ICosmosDistributedLockStore
     {
         private readonly IDocumentClient _documentClient;
         private readonly IOptions<CosmosDataStoreOptions> _options;
         private readonly AsyncRetryPolicy _retryPolicy;
         private readonly IBigBrother _telemetry;
 
-        public DistributedLockStore(IDocumentClient documentClient, IOptions<CosmosDataStoreOptions> options, IBigBrother telemetry)
+        public CosmosDistributedLockStore(IDocumentClient documentClient, IOptions<CosmosDataStoreOptions> options, IBigBrother telemetry)
         {
             _documentClient = documentClient;
             _options = options;
@@ -48,9 +48,9 @@ namespace EShopworld.WorkerProcess.DistributedLock
                 new RequestOptions { OfferThroughput = _options.Value.OfferThroughput }).ConfigureAwait(false);
         }
 
-        public async Task TryClaimLockAsync(IDistributedLockClaim claim)
+        public async Task<bool> TryClaimLockAsync(IDistributedLockClaim claim)
         {
-            await _retryPolicy.ExecuteAsync(async () =>
+            return await _retryPolicy.ExecuteAsync(async () =>
             {
                 try
                 {
@@ -104,12 +104,5 @@ namespace EShopworld.WorkerProcess.DistributedLock
                     }
                 );
         }
-    }
-
-    public interface IDistributedLockStore
-    {
-        Task InitialiseAsync();
-        Task TryClaimLockAsync(IDistributedLockClaim claim);
-        Task ReleaseLockAsync(IDistributedLockClaim claim);
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace EShopworld.WorkerProcess.DistributedLock
+namespace EShopworld.WorkerProcess.CosmosDistributedLock
 {
     public class DistributedLockNotAcquiredException : Exception
     {

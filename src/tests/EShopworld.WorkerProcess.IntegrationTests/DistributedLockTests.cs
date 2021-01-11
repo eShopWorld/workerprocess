@@ -10,7 +10,8 @@ using Eshopworld.DevOps;
 using Eshopworld.Telemetry;
 using Eshopworld.Tests.Core;
 using EShopworld.WorkerProcess.Configuration;
-using EShopworld.WorkerProcess.DistributedLock;
+using EShopworld.WorkerProcess.CosmosDistributedLock;
+using FluentAssertions;
 using Microsoft.ApplicationInsights;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
@@ -44,10 +45,36 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         }
 
         [Fact, IsIntegration]
-        public async Task Test1()
+        public void AcquireLock_ForNewLock_ShouldNotThrowException()
         {
-            var disLockStore = _serviceProvider.GetService<IDistributedLockStore>();
-            using var disLock = await new DistributedLock.DistributedLock(disLockStore).Acquire("abc");
+            var disLockStore = _serviceProvider.GetService<ICosmosDistributedLockStore>();
+            Func<Task> act = async () =>
+            {
+                using (await new DistributedLock(disLockStore).Acquire("test1"))
+                {
+                    // create a recurring job
+                }
+            };
+
+            act.Should().NotThrow();
+        }
+
+        [Fact, IsIntegration]
+        public void AcquireLock_ForExistingLock_ShouldThrowException()
+        {
+            var disLockStore = _serviceProvider.GetService<ICosmosDistributedLockStore>();
+            Func<Task> act = async () =>
+            {
+                using (await new DistributedLock(disLockStore).Acquire("test2"))
+                {
+                    using (await new DistributedLock(disLockStore).Acquire("test2"))
+                    {
+                        // create a recurring job
+                    }
+                }
+            };
+
+            act.Should().Throw<DistributedLockNotAcquiredException>();
         }
 
         private void ConfigureServices(IServiceCollection services, IConfigurationRoot configuration)
@@ -57,7 +84,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             services.Configure<CosmosDataStoreOptions>(configuration.GetSection("CosmosDataStoreOptions"));
             services.Configure<TelemetrySettings>(configuration.GetSection("Telemetry"));
 
-            
+
             var serviceProvider = services.BuildServiceProvider();
 
             var telemetry = serviceProvider
@@ -74,8 +101,8 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             services.AddSingleton<IDocumentClient>(new DocumentClient(cosmosDbConnectionOptions.Value.ConnectionUri,
                 cosmosDbConnectionOptions.Value.AccessKey));
-            
-            services.TryAddSingleton<IDistributedLockStore, DistributedLockStore>();
+
+            services.TryAddSingleton<ICosmosDistributedLockStore, CosmosDistributedLockStore>();
 
         }
     }
