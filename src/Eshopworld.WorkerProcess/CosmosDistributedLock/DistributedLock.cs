@@ -1,16 +1,20 @@
 ﻿using System;
 using System.Threading.Tasks;
+using EShopworld.WorkerProcess.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace EShopworld.WorkerProcess.CosmosDistributedLock
 {
     public class DistributedLock : IDistributedLock
     {
         private readonly ICosmosDistributedLockStore _cosmosDistributedLockStore;
+        private readonly IOptions<CosmosDataStoreOptions> _options;
         private CosmosDistributedLockClaim _cosmosDistributedLockClaim;
 
-        public DistributedLock(ICosmosDistributedLockStore cosmosDistributedLockStore)
+        public DistributedLock(ICosmosDistributedLockStore cosmosDistributedLockStore, IOptions<CosmosDataStoreOptions> options)
         {
             _cosmosDistributedLockStore = cosmosDistributedLockStore;
+            _options = options;
         }
 
         public async Task<IDisposable> Acquire(string lockName)
@@ -28,11 +32,11 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
                     return this;
 
                 _cosmosDistributedLockClaim = null;
-                throw new DistributedLockNotAcquiredException(lockName, null);
+                throw new DistributedLockNotAcquiredException(lockName, _options.Value.DistributedLocksCollection, null);
             }
             catch (Exception ex) when (!(ex is DistributedLockNotAcquiredException))
             {
-                throw new DistributedLockNotAcquiredException(lockName, ex);
+                throw new DistributedLockNotAcquiredException(lockName, _options.Value.DistributedLocksCollection, ex);
             }
         }
 

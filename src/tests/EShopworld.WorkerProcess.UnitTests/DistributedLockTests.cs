@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 using System.Threading.Tasks;
 using Eshopworld.Tests.Core;
+using EShopworld.WorkerProcess.Configuration;
 using EShopworld.WorkerProcess.CosmosDistributedLock;
 using FluentAssertions;
-using Microsoft.Azure.Documents.SystemFunctions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -18,8 +17,13 @@ namespace EShopworld.WorkerProcess.UnitTests
 
         public DistributedLockTests()
         {
+            var options = Options.Create(new CosmosDataStoreOptions
+            {
+                DistributedLocksCollection = "test-collection"
+            });
             _cosmosDbLockStore = new Mock<ICosmosDistributedLockStore>();
-            _distributedLock = new DistributedLock(_cosmosDbLockStore.Object);
+            _distributedLock = new DistributedLock(_cosmosDbLockStore.Object, options);
+
         }
 
         [Theory, IsUnit]
@@ -63,7 +67,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             // Act - Assert
             act.Should().Throw<DistributedLockNotAcquiredException>()
-                .WithMessage("Distributed Lock for document with id: 'blah' could not be acquired.");
+                .WithMessage("Distributed Lock for document with id: 'blah' in collection 'test-collection' could not be acquired.");
 
             _cosmosDbLockStore.Verify(x => x.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Once);
             _cosmosDbLockStore.Verify(x => x.ReleaseLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Never);
@@ -80,7 +84,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             // Act - Assert
             act.Should().Throw<DistributedLockNotAcquiredException>()
-                .WithMessage("Distributed Lock for document with id: 'blah' could not be acquired.")
+                .WithMessage("Distributed Lock for document with id: 'blah' in collection 'test-collection' could not be acquired.")
                 .WithInnerException<Exception>()
                 .WithMessage("Exception of type 'System.Exception' was thrown.");
 
