@@ -94,9 +94,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             var telemetry = serviceProvider
                 .GetService<IOptions<TelemetrySettings>>();
 
-#pragma warning disable 618
-            var bb = new BigBrother(telemetry.Value.InstrumentationKey, telemetry.Value.InternalKey);
-#pragma warning restore 618
+            var bb = BigBrother.CreateDefault(telemetry.Value.InstrumentationKey, telemetry.Value.InternalKey);
 
             services.AddSingleton<IBigBrother>(bb);
 

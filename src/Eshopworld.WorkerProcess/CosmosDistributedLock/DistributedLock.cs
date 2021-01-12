@@ -15,15 +15,22 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
 
         public async Task<IDisposable> Acquire(string lockName)
         {
+            if (string.IsNullOrEmpty(lockName))
+                throw new ArgumentNullException(nameof(lockName));
+
             try
             {
                 await _cosmosDistributedLockStore.InitialiseAsync();
                 _cosmosDistributedLockClaim = new CosmosDistributedLockClaim(lockName);
                 var result = await _cosmosDistributedLockStore.TryClaimLockAsync(_cosmosDistributedLockClaim);
-                return result ? this : throw new DistributedLockNotAcquiredException(lockName, null);
 
+                if (result)
+                    return this;
+
+                _cosmosDistributedLockClaim = null;
+                throw new DistributedLockNotAcquiredException(lockName, null);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!(ex is DistributedLockNotAcquiredException))
             {
                 throw new DistributedLockNotAcquiredException(lockName, ex);
             }
@@ -31,6 +38,9 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
 
         public async void Dispose()
         {
+            if (string.IsNullOrEmpty(_cosmosDistributedLockClaim?.Id))
+                return;
+
             await _cosmosDistributedLockStore.ReleaseLockAsync(_cosmosDistributedLockClaim);
         }
     }

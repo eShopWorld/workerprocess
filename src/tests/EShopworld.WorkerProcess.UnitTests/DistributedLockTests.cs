@@ -1,0 +1,92 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading.Tasks;
+using Eshopworld.Tests.Core;
+using EShopworld.WorkerProcess.CosmosDistributedLock;
+using FluentAssertions;
+using Microsoft.Azure.Documents.SystemFunctions;
+using Moq;
+using Xunit;
+
+namespace EShopworld.WorkerProcess.UnitTests
+{
+    public class DistributedLockTests
+    {
+        private readonly Mock<ICosmosDistributedLockStore> _cosmosDbLockStore;
+        private readonly DistributedLock _distributedLock;
+
+        public DistributedLockTests()
+        {
+            _cosmosDbLockStore = new Mock<ICosmosDistributedLockStore>();
+            _distributedLock = new DistributedLock(_cosmosDbLockStore.Object);
+        }
+
+        [Theory, IsUnit]
+        [InlineData("")]
+        [InlineData(null)]
+        public void Acquire_WhenInvalidLockName_ThrowsException(string lockName)
+        {
+            // Arrange
+            Func<Task> act = async () => await _distributedLock.Acquire(lockName);
+            
+            // Act - Assert
+            act.Should().Throw<ArgumentNullException>();
+        }
+
+        [Fact, IsUnit]
+        public async Task Acquire_WhenTryClaimLockAsyncSucceeds_DistributedLockObjectIsReturned()
+        {
+            // Arrange
+            _cosmosDbLockStore.Setup(_ => _.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()))
+                .Returns(Task.FromResult(true));
+
+            // Act
+            using (var result = await _distributedLock.Acquire("blah"))
+            {
+                // Assert
+                result.Should().BeSameAs(_distributedLock);
+                _cosmosDbLockStore.Verify(x => x.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Once);
+            }
+
+            _cosmosDbLockStore.Verify(x => x.ReleaseLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Once);
+        }
+
+        [Fact, IsUnit]
+        public void Acquire_WhenTryClaimLockAsyncReturnsFalse_ExceptionIsThrown()
+        {
+            // Arrange
+            _cosmosDbLockStore.Setup(_ => _.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()))
+                .Returns(Task.FromResult(false));
+
+            Func<Task> act = async () => await _distributedLock.Acquire("blah");
+
+            // Act - Assert
+            act.Should().Throw<DistributedLockNotAcquiredException>()
+                .WithMessage("Distributed Lock for document with id: 'blah' could not be acquired.");
+
+            _cosmosDbLockStore.Verify(x => x.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Once);
+            _cosmosDbLockStore.Verify(x => x.ReleaseLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Never);
+        }
+
+        [Fact, IsUnit]
+        public void Acquire_WhenTryClaimLockAsyncFails_ExceptionIsThrown()
+        {
+            // Arrange
+            _cosmosDbLockStore.Setup(_ => _.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()))
+                .Throws<Exception>();
+
+            Func<Task> act = async () => await _distributedLock.Acquire("blah");
+
+            // Act - Assert
+            act.Should().Throw<DistributedLockNotAcquiredException>()
+                .WithMessage("Distributed Lock for document with id: 'blah' could not be acquired.")
+                .WithInnerException<Exception>()
+                .WithMessage("Exception of type 'System.Exception' was thrown.");
+
+            _cosmosDbLockStore.Verify(x=>x.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Once);
+            _cosmosDbLockStore.Verify(x => x.ReleaseLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Never);
+        }
+
+    }
+}
