@@ -30,7 +30,7 @@ namespace EShopworld.WorkerProcess.Configuration
         /// <summary>
         /// The consistency level for the store
         /// </summary>
-        public ConsistencyLevel ConsistencyLevel { get; set; } = ConsistencyLevel.Session;
+        public ConsistencyLevel ConsistencyLevel { get; set; } = ConsistencyLevel.Strong;
 
         /// <summary>
         /// The offer through put used when creating the collection
