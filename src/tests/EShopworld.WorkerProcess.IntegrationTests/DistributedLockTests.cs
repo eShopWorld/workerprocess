@@ -44,7 +44,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 var distributedLock = _serviceProvider.GetService<IDistributedLock>();
                 using (await distributedLock.Acquire("test1"))
                 {
-                    // create a recurring job
+                    // critical section code
                 }
             };
 
@@ -63,7 +63,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 {
                     using (await distributedLock.Acquire("test2"))
                     {
-                        // create a recurring job
+                        // critical section code
                     }
                 }
             };
@@ -97,7 +97,6 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             services.TryAddSingleton<ICosmosDistributedLockStore, CosmosDistributedLockStore>();
             services.TryAddTransient<IDistributedLock, DistributedLock>();
-
         }
     }
 }
