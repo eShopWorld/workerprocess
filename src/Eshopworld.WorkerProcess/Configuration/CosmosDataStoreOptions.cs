@@ -23,6 +23,11 @@ namespace EShopworld.WorkerProcess.Configuration
         public string RequestsCollection { get; set; } = "LeaseRequests";
 
         /// <summary>
+        /// The document collection for storing distributed lock. Only required for <see cref="DistributedLock"/>.
+        /// </summary>
+        public string DistributedLocksCollection { get; set; } = "DistributedLocks";
+
+        /// <summary>
         /// The consistency level for the store
         /// </summary>
         public ConsistencyLevel ConsistencyLevel { get; set; } = ConsistencyLevel.Strong;
