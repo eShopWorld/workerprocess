@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Eshopworld.Core;
 using Eshopworld.DevOps;
@@ -12,7 +8,6 @@ using Eshopworld.Tests.Core;
 using EShopworld.WorkerProcess.Configuration;
 using EShopworld.WorkerProcess.CosmosDistributedLock;
 using FluentAssertions;
-using Microsoft.ApplicationInsights;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Extensions.Configuration;
@@ -20,16 +15,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace EShopworld.WorkerProcess.IntegrationTests
 {
     public class DistributedLockTests
     {
         private readonly ServiceProvider _serviceProvider;
-        private readonly ITestOutputHelper _output;
 
-        public DistributedLockTests(ITestOutputHelper output)
+        public DistributedLockTests()
         {
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
@@ -40,8 +33,6 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             ConfigureServices(serviceCollection, configuration);
 
             _serviceProvider = serviceCollection.BuildServiceProvider();
-
-            _output = output;
         }
 
         [Fact, IsIntegration]

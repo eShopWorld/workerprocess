@@ -14,38 +14,19 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
 {
     public class CosmosDistributedLockStore : ICosmosDistributedLockStore
     {
-        private readonly IDocumentClient _documentClient;
+        private readonly Lazy<IDocumentClient> _documentClient;
         private readonly IOptions<CosmosDataStoreOptions> _options;
         private readonly AsyncRetryPolicy _retryPolicy;
         private readonly IBigBrother _telemetry;
 
         public CosmosDistributedLockStore(IDocumentClient documentClient, IOptions<CosmosDataStoreOptions> options, IBigBrother telemetry)
         {
-            _documentClient = documentClient;
             _options = options;
             _telemetry = telemetry;
             _retryPolicy = CreateRetryPolicy();
-        }
-
-        public async Task InitialiseAsync()
-        {
-            await _documentClient.CreateDatabaseIfNotExistsAsync(new Database { Id = _options.Value.Database })
-                .ConfigureAwait(false);
-
-            await CreateLockClaimsCollection();
-        }
-
-        private async Task CreateLockClaimsCollection()
-        {
-            var collectionDefinition = new DocumentCollection
-            {
-                Id = _options.Value.DistributedLocksCollection
-            };
-
-            await _documentClient.CreateDocumentCollectionIfNotExistsAsync(
-                UriFactory.CreateDatabaseUri(_options.Value.Database),
-                collectionDefinition,
-                new RequestOptions { OfferThroughput = _options.Value.OfferThroughput }).ConfigureAwait(false);
+            _documentClient = new Lazy<IDocumentClient>(() => 
+                InitialiseAsync(documentClient, _options.Value)
+                    .ConfigureAwait(false).GetAwaiter().GetResult());
         }
 
         public async Task<bool> TryClaimLockAsync(IDistributedLockClaim claim)
@@ -54,7 +35,7 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
             {
                 try
                 {
-                    var response = await _documentClient.CreateDocumentAsync(
+                    var response = await _documentClient.Value.CreateDocumentAsync(
                         UriFactory.CreateDocumentCollectionUri(_options.Value.Database, _options.Value.DistributedLocksCollection),
                         claim,
                         new RequestOptions
@@ -78,7 +59,7 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
             {
                 try
                 {
-                    var response = await _documentClient.DeleteDocumentAsync(
+                    var response = await _documentClient.Value.DeleteDocumentAsync(
                         UriFactory.CreateDocumentUri(_options.Value.Database, _options.Value.DistributedLocksCollection,
                             claim.Id));
                     return response.StatusCode == HttpStatusCode.OK;
@@ -89,6 +70,28 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
                     throw;
                 }
             }).ConfigureAwait(false);
+        }
+
+        private async Task<IDocumentClient> InitialiseAsync(IDocumentClient documentClient,
+            CosmosDataStoreOptions cosmosDataStoreOptions)
+        {
+            await documentClient.CreateDatabaseIfNotExistsAsync(new Database { Id = cosmosDataStoreOptions.Database });
+            await CreateLockClaimsCollection(documentClient, cosmosDataStoreOptions);
+            return documentClient;
+        }
+
+        private async Task CreateLockClaimsCollection(IDocumentClient documentClient,
+            CosmosDataStoreOptions cosmosDataStoreOptions)
+        {
+            var collectionDefinition = new DocumentCollection
+            {
+                Id = cosmosDataStoreOptions.DistributedLocksCollection
+            };
+
+            await documentClient.CreateDocumentCollectionIfNotExistsAsync(
+                UriFactory.CreateDatabaseUri(cosmosDataStoreOptions.Database),
+                collectionDefinition,
+                new RequestOptions { OfferThroughput = cosmosDataStoreOptions.OfferThroughput }).ConfigureAwait(false);
         }
 
         private AsyncRetryPolicy CreateRetryPolicy()

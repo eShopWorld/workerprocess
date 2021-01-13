@@ -24,7 +24,6 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
 
             try
             {
-                await _cosmosDistributedLockStore.InitialiseAsync();
                 _cosmosDistributedLockClaim = new CosmosDistributedLockClaim(lockName);
                 var result = await _cosmosDistributedLockStore.TryClaimLockAsync(_cosmosDistributedLockClaim);
 
