@@ -3,8 +3,8 @@ using System.Threading.Tasks;
 
 namespace EShopworld.WorkerProcess.CosmosDistributedLock
 {
-    public interface IDistributedLock : IDisposable
+    public interface IDistributedLock : IAsyncDisposable
     {
-        public Task<IDisposable> Acquire(string lockName);
+        public Task<IAsyncDisposable> AcquireAsync(string lockName);
     }
 }

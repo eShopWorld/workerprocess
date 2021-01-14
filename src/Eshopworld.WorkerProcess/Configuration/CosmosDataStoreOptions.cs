@@ -1,4 +1,5 @@
-﻿using Microsoft.Azure.Documents;
+﻿using EShopworld.WorkerProcess.CosmosDistributedLock;
+using Microsoft.Azure.Documents;
 
 namespace EShopworld.WorkerProcess.Configuration
 {

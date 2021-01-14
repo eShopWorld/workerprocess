@@ -42,7 +42,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             Func<Task> act = async () =>
             {
                 var distributedLock = _serviceProvider.GetService<IDistributedLock>();
-                using (await distributedLock.Acquire("test1"))
+                await using (await distributedLock.AcquireAsync("test1"))
                 {
                     // critical section code
                 }
@@ -53,15 +53,16 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         }
 
         [Fact, IsIntegration]
-        public void AcquireLock_ForExistingLock_ShouldThrowException()
+        public void AcquireLock_ForExistingLockName_ShouldThrowException()
         {
             // Arrange
             Func<Task> act = async () =>
             {
-                var distributedLock = _serviceProvider.GetService<IDistributedLock>();
-                using (await distributedLock.Acquire("test2"))
+                var distributedLock1 = _serviceProvider.GetService<IDistributedLock>();
+                var distributedLock2 = _serviceProvider.GetService<IDistributedLock>();
+                await using (await distributedLock1.AcquireAsync("test2"))
                 {
-                    using (await distributedLock.Acquire("test2"))
+                    await using (await distributedLock2.AcquireAsync("test2"))
                     {
                         // critical section code
                     }
@@ -70,6 +71,26 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             // Act - Assert
             act.Should().Throw<DistributedLockNotAcquiredException>();
+        }
+
+        [Fact, IsIntegration]
+        public void AcquireLock_ForExistingLockOnSameObject_ShouldThrowException()
+        {
+            // Arrange
+            Func<Task> act = async () =>
+            {
+                var distributedLock = _serviceProvider.GetService<IDistributedLock>();
+                await using (await distributedLock.AcquireAsync("test3"))
+                {
+                    await using (await distributedLock.AcquireAsync("test456"))
+                    {
+                        // critical section code
+                    }
+                }
+            };
+
+            // Act - Assert
+            act.Should().Throw<DistributedLockAlreadyAcquiredException>();
         }
 
         private void ConfigureServices(IServiceCollection services, IConfigurationRoot configuration)

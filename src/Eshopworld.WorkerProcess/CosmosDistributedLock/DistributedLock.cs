@@ -17,10 +17,13 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
             _options = options;
         }
 
-        public async Task<IDisposable> Acquire(string lockName)
+        public async Task<IAsyncDisposable> AcquireAsync(string lockName)
         {
             if (string.IsNullOrEmpty(lockName))
                 throw new ArgumentNullException(nameof(lockName));
+
+            if (_cosmosDistributedLockClaim != null)
+                throw new DistributedLockAlreadyAcquiredException(lockName);
 
             try
             {
@@ -39,12 +42,13 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
             }
         }
 
-        public async void Dispose()
+        public async ValueTask DisposeAsync()
         {
             if (string.IsNullOrEmpty(_cosmosDistributedLockClaim?.Id))
                 return;
 
             await _cosmosDistributedLockStore.ReleaseLockAsync(_cosmosDistributedLockClaim);
+            _cosmosDistributedLockClaim = null;
         }
     }
 }

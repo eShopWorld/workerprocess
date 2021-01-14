@@ -32,7 +32,7 @@ namespace EShopworld.WorkerProcess.UnitTests
         public void Acquire_WhenInvalidLockName_ThrowsException(string lockName)
         {
             // Arrange
-            Func<Task> act = async () => await _distributedLock.Acquire(lockName);
+            Func<Task> act = async () => await _distributedLock.AcquireAsync(lockName);
             
             // Act - Assert
             act.Should().Throw<ArgumentNullException>();
@@ -46,7 +46,7 @@ namespace EShopworld.WorkerProcess.UnitTests
                 .Returns(Task.FromResult(true));
 
             // Act
-            using (var result = await _distributedLock.Acquire("blah"))
+            await using (var result = await _distributedLock.AcquireAsync("blah"))
             {
                 // Assert
                 result.Should().BeSameAs(_distributedLock);
@@ -63,7 +63,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             _cosmosDbLockStore.Setup(_ => _.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()))
                 .Returns(Task.FromResult(false));
 
-            Func<Task> act = async () => await _distributedLock.Acquire("blah");
+            Func<Task> act = async () => await _distributedLock.AcquireAsync("blah");
 
             // Act - Assert
             act.Should().Throw<DistributedLockNotAcquiredException>()
@@ -80,7 +80,7 @@ namespace EShopworld.WorkerProcess.UnitTests
             _cosmosDbLockStore.Setup(_ => _.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()))
                 .Throws<Exception>();
 
-            Func<Task> act = async () => await _distributedLock.Acquire("blah");
+            Func<Task> act = async () => await _distributedLock.AcquireAsync("blah");
 
             // Act - Assert
             act.Should().Throw<DistributedLockNotAcquiredException>()
