@@ -102,9 +102,9 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
         {
             return Policy
                 .Handle<DocumentClientException>(e => e.RetryAfter > TimeSpan.Zero)
-                .WaitAndRetryForeverAsync(
+                .WaitAndRetryAsync(5,
                     (count, exception, context) => ((DocumentClientException)exception).RetryAfter,
-                    (exception, count, timeSpan, context) =>
+                    (exception, timeSpan, count, context) =>
                     {
                         _telemetry.Publish(new CosmosRetryEvent(timeSpan, count));
                         return Task.CompletedTask;
