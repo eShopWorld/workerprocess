@@ -101,15 +101,9 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
         private AsyncRetryPolicy CreateRetryPolicy()
         {
             return Policy
-                .Handle<DocumentClientException>()
+                .Handle<DocumentClientException>(e => e.RetryAfter > TimeSpan.Zero)
                 .WaitAndRetryAsync(5,
-                    (count, exception, context) =>
-                    {
-                        var ex = (DocumentClientException) exception;
-                        return ex.RetryAfter > TimeSpan.Zero
-                            ? ex.RetryAfter
-                            : TimeSpan.FromMilliseconds(200);
-                    },
+                    (count, exception, context) => ((DocumentClientException)exception).RetryAfter,
                     (exception, timeSpan, count, context) =>
                     {
                         _telemetry.Publish(new CosmosRetryEvent(timeSpan, count));
