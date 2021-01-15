@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace EShopworld.WorkerProcess.IntegrationTests
+namespace EShopworld.WorkerProcess.Configuration
 {
     public class CosmosDbConnectionOptions
     {

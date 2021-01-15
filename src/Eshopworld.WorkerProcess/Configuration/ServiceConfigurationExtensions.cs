@@ -1,14 +1,23 @@
-﻿using EShopworld.WorkerProcess.Exceptions;
+﻿using System.Diagnostics.CodeAnalysis;
+using Autofac;
+using Eshopworld.Core;
+using EShopworld.WorkerProcess.CosmosDistributedLock;
+using EShopworld.WorkerProcess.Exceptions;
 using EShopworld.WorkerProcess.Infrastructure;
 using EShopworld.WorkerProcess.Stores;
+using Microsoft.Azure.Documents;
+using Microsoft.Azure.Documents.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace EShopworld.WorkerProcess.Configuration
 {
+    [ExcludeFromCodeCoverage]
     public static class ServiceConfigurationExtensions
     {
+        private const string DocumentClientServiceName = "WorkerProcessDocumentClient";
+
         /// <summary>
         ///     Adds a <see cref="IWorkerLease"/> to the services collection
         /// </summary>
@@ -32,6 +41,30 @@ namespace EShopworld.WorkerProcess.Configuration
             services.TryAddTransient<ITimer, SystemTimer>();
 
             services.TryAddSingleton<IWorkerLease, WorkerLease>();
+        }
+
+        /// <summary>
+        /// Adds <see cref="DistributedLock"/> to the services collection
+        /// </summary>
+        /// <param name="builder"></param>
+        /// <param name="cosmosDataStoreOptions"></param>
+        /// <param name="cosmosDbConnectionOptions"></param>
+        public static void AddCosmosDistributedLock(this ContainerBuilder builder, CosmosDataStoreOptions cosmosDataStoreOptions, CosmosDbConnectionOptions cosmosDbConnectionOptions)
+        {
+            builder.Register(ctx => Options.Create(cosmosDataStoreOptions))
+                .As<IOptions<CosmosDataStoreOptions>>().SingleInstance();
+
+            builder.Register(
+                ctx => new DocumentClient(cosmosDbConnectionOptions.ConnectionUri, cosmosDbConnectionOptions.AccessKey)
+            ).Named<IDocumentClient>(DocumentClientServiceName);
+
+            builder.Register(ctx =>
+                new CosmosDistributedLockStore(
+                    ctx.ResolveNamed<IDocumentClient>(DocumentClientServiceName),
+                    ctx.Resolve<IOptions<CosmosDataStoreOptions>>(),
+                    ctx.Resolve<IBigBrother>())).As<ICosmosDistributedLockStore>().SingleInstance();
+
+            builder.RegisterType<DistributedLock>().As<IDistributedLock>();
         }
     }
 }
