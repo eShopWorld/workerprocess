@@ -72,7 +72,7 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
             }).ConfigureAwait(false);
         }
 
-        private async Task<IDocumentClient> InitialiseAsync(IDocumentClient documentClient,
+        internal async Task<IDocumentClient> InitialiseAsync(IDocumentClient documentClient,
             CosmosDataStoreOptions cosmosDataStoreOptions)
         {
             await documentClient.CreateDatabaseIfNotExistsAsync(new Database { Id = cosmosDataStoreOptions.Database });
