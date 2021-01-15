@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.ObjectModel;
 using System.Net;
 using System.Threading.Tasks;
 using Eshopworld.Core;
@@ -24,7 +25,7 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
             _options = options;
             _telemetry = telemetry;
             _retryPolicy = CreateRetryPolicy();
-            _documentClient = new Lazy<IDocumentClient>(() => 
+            _documentClient = new Lazy<IDocumentClient>(() =>
                 InitialiseAsync(documentClient, _options.Value)
                     .ConfigureAwait(false).GetAwaiter().GetResult());
         }
@@ -40,7 +41,8 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
                         claim,
                         new RequestOptions
                         {
-                            ConsistencyLevel = _options.Value.ConsistencyLevel
+                            ConsistencyLevel = _options.Value.ConsistencyLevel,
+                            PartitionKey = new PartitionKey(claim.Id)
                         }).ConfigureAwait(false);
 
                     return response.StatusCode == HttpStatusCode.Created;
@@ -57,18 +59,16 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
         {
             await _retryPolicy.ExecuteAsync(async () =>
             {
-                try
-                {
-                    var response = await _documentClient.Value.DeleteDocumentAsync(
-                        UriFactory.CreateDocumentUri(_options.Value.Database, _options.Value.DistributedLocksCollection,
-                            claim.Id));
-                    return response.StatusCode == HttpStatusCode.OK;
-                }
-                catch (DocumentClientException ex)
-                {
-                    Console.WriteLine(ex);
-                    throw;
-                }
+                var response = await _documentClient.Value.DeleteDocumentAsync(
+                    UriFactory.CreateDocumentUri(
+                        _options.Value.Database, 
+                        _options.Value.DistributedLocksCollection,
+                        claim.Id),
+                    new RequestOptions
+                    {
+                        PartitionKey = new PartitionKey(claim.Id)
+                    });
+                return response.StatusCode == HttpStatusCode.OK;
             }).ConfigureAwait(false);
         }
 
@@ -85,7 +85,11 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
         {
             var collectionDefinition = new DocumentCollection
             {
-                Id = cosmosDataStoreOptions.DistributedLocksCollection
+                Id = cosmosDataStoreOptions.DistributedLocksCollection,
+                PartitionKey = new PartitionKeyDefinition
+                {
+                    Paths = new Collection<string> { "/id" }
+                }
             };
 
             await documentClient.CreateDocumentCollectionIfNotExistsAsync(
@@ -98,9 +102,9 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
         {
             return Policy
                 .Handle<DocumentClientException>(e => e.RetryAfter > TimeSpan.Zero)
-                .WaitAndRetryForeverAsync(
+                .WaitAndRetryAsync(5,
                     (count, exception, context) => ((DocumentClientException)exception).RetryAfter,
-                    (exception, count, timeSpan, context) =>
+                    (exception, timeSpan, count, context) =>
                     {
                         _telemetry.Publish(new CosmosRetryEvent(timeSpan, count));
                         return Task.CompletedTask;
