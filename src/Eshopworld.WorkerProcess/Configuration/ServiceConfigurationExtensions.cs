@@ -16,6 +16,8 @@ namespace EShopworld.WorkerProcess.Configuration
     [ExcludeFromCodeCoverage]
     public static class ServiceConfigurationExtensions
     {
+        private const string DocumentClientServiceName = "WorkerProcessDocumentClient";
+
         /// <summary>
         ///     Adds a <see cref="IWorkerLease"/> to the services collection
         /// </summary>
@@ -54,11 +56,11 @@ namespace EShopworld.WorkerProcess.Configuration
 
             builder.Register(
                 ctx => new DocumentClient(cosmosDbConnectionOptions.ConnectionUri, cosmosDbConnectionOptions.AccessKey)
-            ).Named<IDocumentClient>("WorkerProcessDocumentClient");
+            ).Named<IDocumentClient>(DocumentClientServiceName);
 
             builder.Register(ctx =>
                 new CosmosDistributedLockStore(
-                    ctx.ResolveNamed<IDocumentClient>("WorkerProcessDocumentClient"),
+                    ctx.ResolveNamed<IDocumentClient>(DocumentClientServiceName),
                     ctx.Resolve<IOptions<CosmosDataStoreOptions>>(),
                     ctx.Resolve<IBigBrother>())).As<ICosmosDistributedLockStore>().SingleInstance();
 
