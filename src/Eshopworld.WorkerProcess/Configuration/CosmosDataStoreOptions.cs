@@ -1,4 +1,5 @@
-﻿using EShopworld.WorkerProcess.CosmosDistributedLock;
+﻿using System.Diagnostics.CodeAnalysis;
+using EShopworld.WorkerProcess.CosmosDistributedLock;
 using Microsoft.Azure.Documents;
 
 namespace EShopworld.WorkerProcess.Configuration
@@ -6,6 +7,7 @@ namespace EShopworld.WorkerProcess.Configuration
     /// <summary>
     /// The <see cref="CosmosDataStoreOptions"/> class
     /// </summary>
+    [ExcludeFromCodeCoverage]
     public class CosmosDataStoreOptions
     {
         /// <summary>

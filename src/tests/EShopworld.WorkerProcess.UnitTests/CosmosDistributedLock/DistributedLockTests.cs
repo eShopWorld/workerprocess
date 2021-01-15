@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
-namespace EShopworld.WorkerProcess.UnitTests
+namespace EShopworld.WorkerProcess.UnitTests.CosmosDistributedLock
 {
     public class DistributedLockTests
     {
@@ -92,5 +92,23 @@ namespace EShopworld.WorkerProcess.UnitTests
             _cosmosDbLockStore.Verify(x => x.ReleaseLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Never);
         }
 
+        [Fact, IsUnit]
+        public async Task Acquire_WhenLockAlreadyAcquired_ThrowsException()
+        {
+            // Arrange
+            _cosmosDbLockStore.Setup(_ => _.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()))
+                .Returns(Task.FromResult(true));
+            
+            await _distributedLock.AcquireAsync("blah");
+
+            Func<Task> act = async () => await _distributedLock.AcquireAsync("blah");
+
+            // Act - Assert
+            act.Should().Throw<DistributedLockAlreadyAcquiredException>()
+                .WithMessage("Distributed Lock with name 'blah' was already acquired on the current object.");
+
+            _cosmosDbLockStore.Verify(x => x.TryClaimLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Once);
+            _cosmosDbLockStore.Verify(x => x.ReleaseLockAsync(It.IsAny<IDistributedLockClaim>()), Times.Never);
+        }
     }
 }
