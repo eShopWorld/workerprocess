@@ -4,7 +4,6 @@ using Eshopworld.Core;
 using EShopworld.WorkerProcess.CosmosDistributedLock;
 using EShopworld.WorkerProcess.Exceptions;
 using EShopworld.WorkerProcess.Infrastructure;
-using EShopworld.WorkerProcess.IntegrationTests;
 using EShopworld.WorkerProcess.Stores;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
