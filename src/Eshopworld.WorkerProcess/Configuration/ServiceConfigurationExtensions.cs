@@ -17,7 +17,6 @@ namespace EShopworld.WorkerProcess.Configuration
     [ExcludeFromCodeCoverage]
     public static class ServiceConfigurationExtensions
     {
-        private const string DocumentClientServiceName = "WorkerProcessDocumentClient";
         private const string WorkerLeaseOptions = "WorkerProcess:WorkerLease";
         private const string CosmosDataStoreOptions = "WorkerProcess:CosmosDataStore";
 

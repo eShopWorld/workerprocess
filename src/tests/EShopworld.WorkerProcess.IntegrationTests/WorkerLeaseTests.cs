@@ -668,16 +668,11 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             return serviceProvider.GetService<ILeaseStore>();
         }
 
-        private WorkerLease CreateWorkerLease(IOptions<WorkerLeaseOptions> options)
+        private IWorkerLease CreateWorkerLease(IOptions<WorkerLeaseOptions> options)
         {
+            _serviceCollection.AddSingleton(options);
             var serviceProvider = _serviceCollection.BuildServiceProvider();
-            var telemetry = serviceProvider.GetService<IBigBrother>();
-            var leaseStore = serviceProvider.GetService<ILeaseStore>();
-            var slottedInterval = serviceProvider.GetService<ISlottedInterval>();
-            var leaseAllocator = new LeaseAllocator(telemetry, leaseStore, slottedInterval, options);
-            var timer = serviceProvider.GetService<ITimer>();
-
-            return new WorkerLease(telemetry, leaseAllocator, timer, slottedInterval, options);
+            return serviceProvider.GetService<IWorkerLease>();
         }
         private void ConfigureServices(IConfigurationRoot configuration)
         {
