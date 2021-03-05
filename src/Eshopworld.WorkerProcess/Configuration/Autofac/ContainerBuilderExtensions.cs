@@ -11,6 +11,8 @@ namespace EShopworld.WorkerProcess.Configuration.Autofac
     public static class ContainerBuilderExtensions
     {
         private const string CosmosDataStoreOptions = "WorkerProcess:CosmosDataStore";
+        private const string CosmosConnectionKeVaultKey = "cm--cosmos-connection--worker-process";
+
         /// <summary>
         /// Adds <see cref="DistributedLock"/> to the services collection
         /// </summary>
@@ -18,19 +20,19 @@ namespace EShopworld.WorkerProcess.Configuration.Autofac
         /// <param name="configuration"></param>
         public static void AddCosmosDistributedLock(this ContainerBuilder builder, IConfigurationRoot configuration)
         {
-            var cosmosDataStoreOptions = configuration.BindSection<CosmosDataStoreOptions>(CosmosDataStoreOptions,
-                m => { m.AddMapping(x => x.ConnectionString, "cm--cosmos-connection--worker-process"); });
+            var cosmosDataStoreOptions = Options.Create(configuration.BindSection<CosmosDataStoreOptions>(CosmosDataStoreOptions,
+                m => { m.AddMapping(x => x.ConnectionString, CosmosConnectionKeVaultKey); }));
 
-            builder.Register(ctx => Options.Create(cosmosDataStoreOptions))
+            builder.Register(ctx => cosmosDataStoreOptions)
                 .As<IOptions<CosmosDataStoreOptions>>().SingleInstance();
 
-            var cosmosDbConnectionString = new CosmosDbConnectionString(cosmosDataStoreOptions.ConnectionString);
+            var cosmosDbConnectionString = new CosmosDbConnectionString(cosmosDataStoreOptions.Value.ConnectionString);
             var documentClient = new DocumentClient(cosmosDbConnectionString.ServiceEndpoint, cosmosDbConnectionString.AuthKey);
 
             builder.Register(ctx =>
                 new CosmosDistributedLockStore(
                     documentClient,
-                    ctx.Resolve<IOptions<CosmosDataStoreOptions>>(),
+                    cosmosDataStoreOptions,
                     ctx.Resolve<IBigBrother>())).As<ICosmosDistributedLockStore>().SingleInstance();
 
             builder.RegisterType<DistributedLock>().As<IDistributedLock>();

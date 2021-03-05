@@ -19,6 +19,7 @@ namespace EShopworld.WorkerProcess.Configuration
     {
         private const string WorkerLeaseOptions = "WorkerProcess:WorkerLease";
         private const string CosmosDataStoreOptions = "WorkerProcess:CosmosDataStore";
+        private const string CosmosConnectionKeVaultKey = "cm--cosmos-connection--worker-process";
 
         /// <summary>
         ///  Adds a <see cref="IWorkerLease"/> to the services collection
@@ -31,7 +32,7 @@ namespace EShopworld.WorkerProcess.Configuration
             services.Configure<WorkerLeaseOptions>(configuration.GetSection(WorkerLeaseOptions));
 
             var cosmosDataStoreOptions = configuration.BindSection<CosmosDataStoreOptions>(CosmosDataStoreOptions,
-                m => { m.AddMapping(x => x.ConnectionString, "cm--cosmos-connection--worker-process"); });
+                m => { m.AddMapping(x => x.ConnectionString, CosmosConnectionKeVaultKey); });
 
             services.TryAddSingleton<ISlottedInterval, SlottedInterval>();
 
@@ -52,7 +53,7 @@ namespace EShopworld.WorkerProcess.Configuration
         public static void AddCosmosDistributedLock(this IServiceCollection services, IConfigurationRoot configuration)
         {
             var cosmosDataStoreOptions = configuration.BindSection<CosmosDataStoreOptions>(CosmosDataStoreOptions,
-                m => { m.AddMapping(x => x.ConnectionString, "cm--cosmos-connection--worker-process"); });
+                m => { m.AddMapping(x => x.ConnectionString, CosmosConnectionKeVaultKey); });
 
             services.TryAddSingleton(Options.Create(cosmosDataStoreOptions));
             services.TryAddSingleton(CreateDistributedLockStore(services,cosmosDataStoreOptions));
