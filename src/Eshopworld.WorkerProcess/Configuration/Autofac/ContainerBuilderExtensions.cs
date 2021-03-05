@@ -11,7 +11,7 @@ namespace EShopworld.WorkerProcess.Configuration.Autofac
     public static class ContainerBuilderExtensions
     {
         private const string CosmosDataStoreOptions = "WorkerProcess:CosmosDataStore";
-        private const string CosmosConnectionKeVaultKey = "cm--cosmos-connection--worker-process";
+        private const string CosmosConnectionKeyVaultKey = "cm--cosmos-connection--worker-process";
 
         /// <summary>
         /// Adds <see cref="DistributedLock"/> to the services collection
@@ -21,7 +21,7 @@ namespace EShopworld.WorkerProcess.Configuration.Autofac
         public static void AddCosmosDistributedLock(this ContainerBuilder builder, IConfigurationRoot configuration)
         {
             var cosmosDataStoreOptions = Options.Create(configuration.BindSection<CosmosDataStoreOptions>(CosmosDataStoreOptions,
-                m => { m.AddMapping(x => x.ConnectionString, CosmosConnectionKeVaultKey); }));
+                m => { m.AddMapping(x => x.ConnectionString, CosmosConnectionKeyVaultKey); }));
 
             builder.Register(ctx => cosmosDataStoreOptions)
                 .As<IOptions<CosmosDataStoreOptions>>().SingleInstance();
