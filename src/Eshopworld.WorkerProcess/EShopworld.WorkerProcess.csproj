@@ -10,14 +10,12 @@
 
     <Platforms>x64</Platforms>
     <Platform>x64</Platform>
-    <Version>1.1.3</Version>
+    <Version>1.1.4</Version>
     <Copyright>Copyright eShopWorld 2020</Copyright>
     <PackageProjectUrl>https://github.com/eShopWorld/workerprocess</PackageProjectUrl>
     <RepositoryUrl>https://github.com/eShopWorld/workerprocess</RepositoryUrl>
     <PackageReleaseNotes>
-      - Fixed bug with Distributed Lock feature.
-      - Added unit tests
-      - Added service configuration extension method for Distributed Lock
+      - Hide cosmosdb details from the client using the default strong consistency cosmosdb account
     </PackageReleaseNotes>
     <Company>eShopWorld</Company>
     <Authors>Derek Goslin, Keith Ebbitt</Authors>
