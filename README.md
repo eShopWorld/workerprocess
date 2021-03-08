@@ -68,17 +68,36 @@ The default ILeaseStore is based on CosmosDb document database. This store needs
 
 #### WorkerLeaseOptions
 
+```json
+  "WorkerProcess": {
+    "WorkerLease": {
+      "WorkerType": "SchedulerWorker",
+      "LeaseInterval": "0:30:00",
+      "ElectionDelay": "0:0:10" 
+    },
+    "Region": {
+      "West Europe": {
+        "Priority": "2",
+        "InstanceId": Guid1
+      },
+      "Southeast Asia": {
+        "Priority": "3",
+        "InstanceId": Guid2
+      },
+      "East US": {
+        "Priority": "4",
+        "InstanceId": Guid3
+      }
+    }
+  }
+```
+
+
 Configuration Setting | Description | Default
 ---------|----------|----------
 WorkerType | This is a category type of a worker that acquires leases | There is no default value and the worker type should be set to a domain specific value
 Priority | This is the priority of the worker process | The default is zero which is the highest priority
 LeaseInterval | The amount of time in minutes that the lease is acquired | Defaults to 5 mins
+ElectionDelay | It's the election time duration. The lease will only be assigned after all the instances have had enough time to vote announcing their presence with their priority | Defaults to 5 seconds
 
-##### CosmosDataStoreOptions
-
-Configuration Setting | Description | Default
----------|----------|----------
-Database | The CosmosDB database name | WorkerProcess
-Collection | The cosmosDB collection name to store the lease | WorkerLeases
-ConsistencyLevel | The consistency level for the store | Strong
-OfferThroughput | The offer through put used when creating the collection | 400
+Please note that Priority and InstanceId can also be set region specific. In the json snippet above, we have 3 regions each of them setting their own instance Id and priority
