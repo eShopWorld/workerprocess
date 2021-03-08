@@ -7,6 +7,7 @@ using EShopworld.WorkerProcess.Infrastructure;
 using EShopworld.WorkerProcess.Stores;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -16,29 +17,30 @@ namespace EShopworld.WorkerProcess.Configuration
     [ExcludeFromCodeCoverage]
     public static class ServiceConfigurationExtensions
     {
-        private const string DocumentClientServiceName = "WorkerProcessDocumentClient";
+        private const string WorkerLeaseOptions = "WorkerProcess:WorkerLease";
+        private const string CosmosDataStoreOptions = "WorkerProcess:CosmosDataStore";
+        private const string CosmosConnectionKeyVaultKey = "cm--cosmos-connection--worker-process";
 
         /// <summary>
-        ///     Adds a <see cref="IWorkerLease"/> to the services collection
+        ///  Adds a <see cref="IWorkerLease"/> to the services collection
         /// </summary>
         /// <param name="services">The <see cref="IServiceCollection"/></param>
-        public static void AddWorkerLease(this IServiceCollection services)
+        /// <param name="configuration">The <see cref="IConfigurationRoot"/></param>
+        public static void AddWorkerLease(this IServiceCollection services, IConfigurationRoot configuration)
         {
-            var serviceProvider = services.BuildServiceProvider();
+            services.AddOptions();
+            services.Configure<WorkerLeaseOptions>(configuration.GetSection(WorkerLeaseOptions));
 
-            var options = serviceProvider
-                .GetService<IOptionsMonitor<WorkerLeaseOptions>>();
-
-            if (options.CurrentValue == null)
-                throw new WorkerLeaseException($"[{typeof(IOptionsMonitor<WorkerLeaseOptions>)}] was not configured");
+            var cosmosDataStoreOptions = configuration.BindSection<CosmosDataStoreOptions>(CosmosDataStoreOptions,
+                m => { m.AddMapping(x => x.ConnectionString, CosmosConnectionKeyVaultKey); });
 
             services.TryAddSingleton<ISlottedInterval, SlottedInterval>();
 
             services.TryAddSingleton<ILeaseAllocator, LeaseAllocator>();
 
-            services.TryAddSingleton<ILeaseStore, CosmosDbLeaseStore>();
+            services.TryAddSingleton<ITimer, SystemTimer>();
 
-            services.TryAddTransient<ITimer, SystemTimer>();
+            services.TryAddSingleton(CreateLeaseStore(services, cosmosDataStoreOptions));
 
             services.TryAddSingleton<IWorkerLease, WorkerLease>();
         }
@@ -46,25 +48,40 @@ namespace EShopworld.WorkerProcess.Configuration
         /// <summary>
         /// Adds <see cref="DistributedLock"/> to the services collection
         /// </summary>
-        /// <param name="builder"></param>
-        /// <param name="cosmosDataStoreOptions"></param>
-        /// <param name="cosmosDbConnectionOptions"></param>
-        public static void AddCosmosDistributedLock(this ContainerBuilder builder, CosmosDataStoreOptions cosmosDataStoreOptions, CosmosDbConnectionOptions cosmosDbConnectionOptions)
+        /// <param name="services"></param>
+        /// <param name="configuration"></param>
+        public static void AddCosmosDistributedLock(this IServiceCollection services, IConfigurationRoot configuration)
         {
-            builder.Register(ctx => Options.Create(cosmosDataStoreOptions))
-                .As<IOptions<CosmosDataStoreOptions>>().SingleInstance();
+            var cosmosDataStoreOptions = configuration.BindSection<CosmosDataStoreOptions>(CosmosDataStoreOptions,
+                m => { m.AddMapping(x => x.ConnectionString, CosmosConnectionKeyVaultKey); });
 
-            builder.Register(
-                ctx => new DocumentClient(cosmosDbConnectionOptions.ConnectionUri, cosmosDbConnectionOptions.AccessKey)
-            ).Named<IDocumentClient>(DocumentClientServiceName);
-
-            builder.Register(ctx =>
-                new CosmosDistributedLockStore(
-                    ctx.ResolveNamed<IDocumentClient>(DocumentClientServiceName),
-                    ctx.Resolve<IOptions<CosmosDataStoreOptions>>(),
-                    ctx.Resolve<IBigBrother>())).As<ICosmosDistributedLockStore>().SingleInstance();
-
-            builder.RegisterType<DistributedLock>().As<IDistributedLock>();
+            services.TryAddSingleton(Options.Create(cosmosDataStoreOptions));
+            services.TryAddSingleton(CreateDistributedLockStore(services,cosmosDataStoreOptions));
+            services.TryAddTransient<IDistributedLock,DistributedLock>();
         }
+
+        private static ICosmosDistributedLockStore CreateDistributedLockStore(IServiceCollection services,
+            CosmosDataStoreOptions cosmosDataStoreOptions)
+        {
+            var serviceProvider = services.BuildServiceProvider();
+            var cosmosDbConnectionString = new CosmosDbConnectionString(cosmosDataStoreOptions.ConnectionString);
+            var documentClient = new DocumentClient(cosmosDbConnectionString.ServiceEndpoint, cosmosDbConnectionString.AuthKey);
+            return new CosmosDistributedLockStore(
+                documentClient,
+                serviceProvider.GetService<IOptions<CosmosDataStoreOptions>>(),
+                serviceProvider.GetService<IBigBrother>());
+        }
+
+
+        private static ILeaseStore CreateLeaseStore(IServiceCollection services, CosmosDataStoreOptions cosmosDataStoreOptions)
+        {
+            var cosmosDbConnectionString = new CosmosDbConnectionString(cosmosDataStoreOptions.ConnectionString);
+            var documentClient = new DocumentClient(cosmosDbConnectionString.ServiceEndpoint, cosmosDbConnectionString.AuthKey);
+            var serviceProvider = services.BuildServiceProvider();
+            return new CosmosDbLeaseStore(documentClient, serviceProvider.GetService<IBigBrother>(),
+                Options.Create(cosmosDataStoreOptions));
+        }
+
+
     }
 }

@@ -14,10 +14,12 @@ using EShopworld.WorkerProcess.Infrastructure;
 using EShopworld.WorkerProcess.Stores;
 using FluentAssertions;
 using FluentAssertions.Execution;
+using Microsoft.ApplicationInsights;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Xunit;
 using Xunit.Abstractions;
@@ -27,7 +29,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
     [Collection("WorkerLeases")]
     public class WorkerLeaseTests
     {
-        private readonly ServiceProvider _serviceProvider;
+        private readonly IServiceCollection _serviceCollection;
         private readonly ITestOutputHelper _output;
         private readonly ConcurrentDictionary<IWorkerLease, int> _workerLeases;
         private readonly ManualResetEvent _leaseAllocatedEvent;
@@ -43,10 +45,8 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 .AddJsonFile("appsettings.json", false, true)
                 .Build();
 
-            var serviceCollection = new ServiceCollection();
-            ConfigureServices(serviceCollection, configuration);
-
-            _serviceProvider = serviceCollection.BuildServiceProvider();
+            _serviceCollection = new ServiceCollection();
+            ConfigureServices(configuration);
 
             _workerLeases = new ConcurrentDictionary<IWorkerLease, int>();
             _leaseAllocatedEvent = new ManualResetEvent(false);
@@ -64,7 +64,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             bool leaseExpired = false;
 
             // Arrange
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
             var workerLease = CreateWorkerLease(Options.Create(new WorkerLeaseOptions
             {
                 LeaseInterval = new TimeSpan(0, 0, 30),
@@ -101,11 +101,12 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             leaseExpired.Should().BeTrue();
         }
 
+
         [Fact, IsIntegration]
         public async Task TestMultipleWorkLeases()
         {
             // Arrange
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
             SetupWorkerLeases(3, i => i, "TestMultipleWorkLeases");
 
             Random r = new Random();
@@ -144,7 +145,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         public async Task TestMultipleConcurrentWorkLeases()
         {
             // Arrange
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
             SetupWorkerLeases(30, i => WorkerLeaseOptions.MaxPriority - i % WorkerLeaseOptions.MaxPriority - 1, "TestMultipleConcurrentWorkLeases");
 
             // Act
@@ -182,7 +183,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         {
 
             // Arrange
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
 
             SetupWorkerLeases(3, i => 0, "TestMultipleWorkLeasesSamePriority");
 
@@ -224,7 +225,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             //arrange
             ConcurrentBag<IWorkerLease> expired = new ConcurrentBag<IWorkerLease>();
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
 
             Guid? winner = null;
             void OnWorkerProcessOnLeaseAllocated(object sender, LeaseAllocatedEventArgs args)
@@ -285,7 +286,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             //arrange
             ConcurrentBag<IWorkerLease> expired = new ConcurrentBag<IWorkerLease>();
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
 
             Guid? winner = null;
             void OnWorkerProcessOnLeaseAllocated(object sender, LeaseAllocatedEventArgs args)
@@ -346,7 +347,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         {
             //arrange
             ManualResetEvent manualResetEvent = new ManualResetEvent(false);
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
 
             Guid? winner = null;
             var workerType = "TestWorkLease_WhenAWpWithDifferentInstanceAndSamePriorityThanCurrentLeaseHolderStartsALeaseDuringLeaseTime_ShouldLose";
@@ -408,7 +409,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             ConcurrentBag<IWorkerLease> expired = new ConcurrentBag<IWorkerLease>();
             Dictionary<IWorkerLease, ManualResetEvent> manualResetEventsDictionary = new Dictionary<IWorkerLease, ManualResetEvent>();
             ConcurrentBag<Guid> winners = new ConcurrentBag<Guid>();
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
 
             void OnWorkerProcessOnLeaseAllocated(object sender, LeaseAllocatedEventArgs args)
             {
@@ -464,7 +465,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             ConcurrentBag<IWorkerLease> expired = new ConcurrentBag<IWorkerLease>();
             Dictionary<IWorkerLease, ManualResetEvent> manualResetEventsDictionary = new Dictionary<IWorkerLease, ManualResetEvent>();
             ConcurrentBag<Guid> winners = new ConcurrentBag<Guid>();
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
 
             void OnWorkerProcessOnLeaseAllocated(object sender, LeaseAllocatedEventArgs args)
             {
@@ -523,7 +524,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         public async Task WorkerLease_MultipleWorkersPerInstanceId_LeaseAllocatedToAllWorkersWithSameInstanceId()
         {
             // Arrange
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
             for (var i = 0; i < 3; i++)
             {
                 var iPriority = i;
@@ -568,7 +569,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
         public async Task WorkerLease_MultipleWorkersPerInstanceIdStaggeredStart_LeaseAllocatedToAllWorkersWithSameInstanceId()
         {
             // Arrange
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
+            var leaseStore = CreateLeaseStore();
 
             var priorities = new Dictionary<Guid, int>
             {
@@ -661,41 +662,26 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             }
         }
 
-        private WorkerLease CreateWorkerLease(IOptions<WorkerLeaseOptions> options)
+        private ILeaseStore CreateLeaseStore()
         {
-            var telemetry = _serviceProvider.GetService<IBigBrother>();
-            var leaseStore = _serviceProvider.GetService<ILeaseStore>();
-            var slottedInterval = _serviceProvider.GetService<ISlottedInterval>();
-            var timer = _serviceProvider.GetService<ITimer>();
-            var leaseAllocator = new LeaseAllocator(telemetry, leaseStore, slottedInterval, options);
-
-            var workerLease = new WorkerLease(telemetry, leaseAllocator, timer, slottedInterval, options);
-            return workerLease;
+            var serviceProvider = _serviceCollection.BuildServiceProvider();
+            return serviceProvider.GetService<ILeaseStore>();
         }
-        private void ConfigureServices(IServiceCollection services, IConfigurationRoot configuration)
+
+        private IWorkerLease CreateWorkerLease(IOptions<WorkerLeaseOptions> options)
         {
-            services.AddOptions();
-            services.Configure<CosmosDbConnectionOptions>(configuration.GetSection("CosmosDbConnectionOptions"));
-            services.Configure<CosmosDataStoreOptions>(configuration.GetSection("CosmosDataStoreOptions"));
-            services.Configure<WorkerLeaseOptions>(configuration.GetSection("WorkerLeaseOptions"));
-            services.Configure<TelemetrySettings>(configuration.GetSection("Telemetry"));
+            _serviceCollection.AddSingleton(options);
+            var serviceProvider = _serviceCollection.BuildServiceProvider();
+            return serviceProvider.GetService<IWorkerLease>();
+        }
+        private void ConfigureServices(IConfigurationRoot configuration)
+        {
 
-            var serviceProvider = services.BuildServiceProvider();
-
-            var telemetry = serviceProvider
-                .GetService<IOptions<TelemetrySettings>>();
-
-            var bb = new BigBrother(telemetry.Value.InstrumentationKey, telemetry.Value.InternalKey);
-
-            services.AddSingleton<IBigBrother>(bb);
-
-            var cosmosDbConnectionOptions = serviceProvider
-                .GetService<IOptions<CosmosDbConnectionOptions>>();
-
-            services.AddSingleton<IDocumentClient>(new DocumentClient(cosmosDbConnectionOptions.Value.ConnectionUri,
-                cosmosDbConnectionOptions.Value.AccessKey));
-
-            services.AddWorkerLease();
+            _serviceCollection.TryAddSingleton<TelemetryClient>();
+            var telemetry = new TelemetrySettings();
+            configuration.GetSection("Telemetry").Bind(telemetry);
+            _serviceCollection.TryAddSingleton<IBigBrother>(BigBrother.CreateDefault(telemetry.InstrumentationKey, telemetry.InternalKey));
+            _serviceCollection.AddWorkerLease(configuration);
         }
     }
 }

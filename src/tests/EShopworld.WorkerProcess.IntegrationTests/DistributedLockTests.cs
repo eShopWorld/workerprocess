@@ -1,19 +1,12 @@
 ﻿using System;
 using System.IO;
 using System.Threading.Tasks;
-using Eshopworld.Core;
-using Eshopworld.DevOps;
-using Eshopworld.Telemetry;
 using Eshopworld.Tests.Core;
 using EShopworld.WorkerProcess.Configuration;
 using EShopworld.WorkerProcess.CosmosDistributedLock;
 using FluentAssertions;
-using Microsoft.Azure.Documents;
-using Microsoft.Azure.Documents.Client;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace EShopworld.WorkerProcess.IntegrationTests
@@ -95,29 +88,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
         private void ConfigureServices(IServiceCollection services, IConfigurationRoot configuration)
         {
-            services.AddOptions();
-            services.Configure<CosmosDbConnectionOptions>(configuration.GetSection("CosmosDbConnectionOptions"));
-            services.Configure<CosmosDataStoreOptions>(configuration.GetSection("CosmosDataStoreOptions"));
-            services.Configure<TelemetrySettings>(configuration.GetSection("Telemetry"));
-
-
-            var serviceProvider = services.BuildServiceProvider();
-
-            var telemetry = serviceProvider
-                .GetService<IOptions<TelemetrySettings>>();
-
-            var bb = BigBrother.CreateDefault(telemetry.Value.InstrumentationKey, telemetry.Value.InternalKey);
-
-            services.AddSingleton<IBigBrother>(bb);
-
-            var cosmosDbConnectionOptions = serviceProvider
-                .GetService<IOptions<CosmosDbConnectionOptions>>();
-
-            services.AddSingleton<IDocumentClient>(new DocumentClient(cosmosDbConnectionOptions.Value.ConnectionUri,
-                cosmosDbConnectionOptions.Value.AccessKey));
-
-            services.TryAddSingleton<ICosmosDistributedLockStore, CosmosDistributedLockStore>();
-            services.TryAddTransient<IDistributedLock, DistributedLock>();
+            services.AddCosmosDistributedLock(configuration);
         }
     }
 }

@@ -39,5 +39,10 @@ namespace EShopworld.WorkerProcess.Configuration
         /// The offer through put used when creating the collection
         /// </summary>
         public int OfferThroughput { get; set; } = 400;
+
+        /// <summary>
+        /// CosmosDb Connection String
+        /// </summary>
+        public string ConnectionString { get; set; }
     }
 }
