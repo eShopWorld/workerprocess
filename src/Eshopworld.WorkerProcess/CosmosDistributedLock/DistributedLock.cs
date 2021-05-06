@@ -28,7 +28,9 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
             try
             {
                 _cosmosDistributedLockClaim = new CosmosDistributedLockClaim(lockName);
-                var result = await _cosmosDistributedLockStore.TryClaimLockAsync(_cosmosDistributedLockClaim);
+                var result = await _cosmosDistributedLockStore
+                    .TryClaimLockAsync(_cosmosDistributedLockClaim)
+                    .ConfigureAwait(false);
 
                 if (result)
                     return this;
@@ -47,7 +49,9 @@ namespace EShopworld.WorkerProcess.CosmosDistributedLock
             if (string.IsNullOrEmpty(_cosmosDistributedLockClaim?.Id))
                 return;
 
-            await _cosmosDistributedLockStore.ReleaseLockAsync(_cosmosDistributedLockClaim);
+            await _cosmosDistributedLockStore
+                .ReleaseLockAsync(_cosmosDistributedLockClaim)
+                .ConfigureAwait(false);
             _cosmosDistributedLockClaim = null;
         }
     }
