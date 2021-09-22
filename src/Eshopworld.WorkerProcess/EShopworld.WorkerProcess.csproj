@@ -10,13 +10,13 @@
 
     <Platforms>x64</Platforms>
     <Platform>x64</Platform>
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <Copyright>Copyright ESW 2020</Copyright>
     <PackageProjectUrl>https://github.com/eShopWorld/workerprocess</PackageProjectUrl>
     <RepositoryUrl>https://github.com/eShopWorld/workerprocess</RepositoryUrl>
     <PackageReleaseNotes>
-      - Hide cosmosdb details from the client using the default strong consistency cosmosdb account
-    </PackageReleaseNotes>
+		Updated Microsoft.Azure.DocumentDB.Core package to latest version
+	</PackageReleaseNotes>
     <Company>ESW</Company>
     <Authors>Derek Goslin, Keith Ebbitt, Ferdinando Aprovitolo</Authors>
     <Description>Infrastructure for worker process interaction built on top of CosmosDb</Description>
@@ -27,7 +27,7 @@
   <ItemGroup>
     <PackageReference Include="Eshopworld.DevOps" Version="5.1.11" />
     <PackageReference Include="Eshopworld.Telemetry" Version="3.1.5" />
-    <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.11.6" />
+    <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.16.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="3.1.7" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="3.1.7" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="3.1.7" />
