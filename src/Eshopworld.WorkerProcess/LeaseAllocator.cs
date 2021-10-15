@@ -97,6 +97,25 @@ namespace EShopworld.WorkerProcess
 
         }
 
+        public async Task<ILease> TryReacquireLease(Guid instanceId, CancellationToken token)
+        {
+            _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                _options.Value.Priority, $"Attempting to reacquire lease for instance {instanceId}"));
+            var lease = await _leaseStore.ReadByLeaseTypeAsync(_options.Value.WorkerType).ConfigureAwait(false);
+            if (lease?.LeasedUntil != null && lease.LeasedUntil.Value > ServerDateTime.UtcNow)
+            {
+                if (lease.InstanceId == instanceId)
+                {
+                    _telemetry.Publish(new LeaseAcquisitionEvent(instanceId, _options.Value.WorkerType,
+                        _options.Value.Priority, $"Existing lease reused: {GenerateLeaseInfo(lease)}"));
+                    
+                    return lease;
+                }
+            }
+
+            return null;
+        }
+
         private async Task<LeaseStoreResult> TryPersistLease(ILease lease)
         {
             var instanceId = lease.InstanceId.Value;

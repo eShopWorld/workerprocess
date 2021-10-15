@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Reactive.PlatformServices;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using Eshopworld.Core;
 using EShopworld.WorkerProcess.Configuration;
 using EShopworld.WorkerProcess.Exceptions;
 using EShopworld.WorkerProcess.Infrastructure;
+using EShopworld.WorkerProcess.Model;
 using EShopworld.WorkerProcess.Stores;
 using EShopworld.WorkerProcess.Telemetry;
 using Microsoft.Extensions.Options;
@@ -49,10 +51,21 @@ namespace EShopworld.WorkerProcess
         public Guid InstanceId { get; }
 
         /// <inheritdoc />
-        public void StartLeasing()
+        public Task StartLeasingAsync(CancellationToken cancellationToken)
         {
-            _timer.ExecutePeriodicallyIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),
-                    (token)=> OperationTelemetryHandler(LeaseAsync,token));
+            try
+            {
+                Task.Run(async () => await HandleExistingLeaseAsync(cancellationToken).ConfigureAwait(false), cancellationToken);
+
+                return Task.Run(async () =>
+                   await _timer.ExecutePeriodicallyIn(_slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),
+                        (token)=> OperationTelemetryHandler(LeaseAsync,token)).ConfigureAwait(false), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return Task.CompletedTask;
+            }
+            
         }
 
         /// <inheritdoc />
@@ -66,6 +79,14 @@ namespace EShopworld.WorkerProcess
 
         /// <inheritdoc />
         public event EventHandler<EventArgs> LeaseExpired;
+
+        internal async Task HandleExistingLeaseAsync(CancellationToken token)
+        {
+            CurrentLease = await _leaseAllocator.TryReacquireLease(InstanceId, token).ConfigureAwait(false);
+
+            if (CurrentLease != null)
+                OnLeaseAllocated(CurrentLease.LeasedUntil.GetValueOrDefault());
+        }
 
         internal async Task<TimeSpan> LeaseAsync(CancellationToken token)
         {

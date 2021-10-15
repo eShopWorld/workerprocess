@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace EShopworld.WorkerProcess
 {
     public interface IWorkerLease
@@ -10,7 +13,7 @@ namespace EShopworld.WorkerProcess
         /// <summary>
         /// Start Leasing
         /// </summary>
-        void StartLeasing();
+        Task StartLeasingAsync(CancellationToken cancellationToken);
         /// <summary>
         /// Stop Leasing
         /// </summary>
