@@ -92,13 +92,73 @@ namespace EShopworld.WorkerProcess.UnitTests
         }
 
         [Fact, IsUnit]
-        public void TestStartLease()
+        public async Task StartLeasingAsync_WhenExistingLeaseAvailable_LeaseIsAllocated()
+        {
+            // Arrange
+
+            var eventFired = false;
+            var instanceId = Guid.NewGuid();
+
+            _mockLeaseAllocator.Setup(m => m.TryReacquireLease(
+                    It.Is<Guid>(id => id == instanceId),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new TestLease
+                {
+                    LeasedUntil = DateTime.UtcNow + TimeSpan.FromMinutes(5),
+                    Interval = TimeSpan.FromMinutes(2),
+                    InstanceId = instanceId
+                });
+
+            var workerLease = BuildWorkerLeaseWithFixedInstanceId(instanceId);
+
+            workerLease.LeaseAllocated += (sender, args) =>
+            {
+                eventFired = true;
+            };
+
+            // Act
+            await workerLease.StartLeasingAsync(It.IsAny<CancellationToken>()).ConfigureAwait(true);
+
+            // Assert
+            eventFired.Should().BeTrue();
+        }
+
+        [Fact, IsUnit]
+        public async Task StartLeasingAsync_WhenExistingLeaseNotAvailable_LeaseIsNotAllocated()
+        {
+            // Arrange
+
+            var eventFired = false;
+            var instanceId = Guid.NewGuid();
+
+            _mockLeaseAllocator.Setup(m => m.TryReacquireLease(
+                    It.Is<Guid>(id => id == instanceId),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync((TestLease)null);
+
+            var workerLease = BuildWorkerLeaseWithFixedInstanceId(instanceId);
+
+            workerLease.LeaseAllocated += (sender, args) =>
+            {
+                eventFired = true;
+            };
+
+            // Act
+            await workerLease.StartLeasingAsync(It.IsAny<CancellationToken>()).ConfigureAwait(true);
+
+            // Assert
+            eventFired.Should().BeFalse();
+        }
+
+        [Fact, IsUnit]
+        public async Task TestStartLease()
         {
             // Arrange
             ServerDateTime.UtcNowFunc = () => new DateTime(2000, 1, 1, 12, 0, 0);
 
             // Act
-            _workerLease.StartLeasing();
+            await _workerLease.StartLeasingAsync(CancellationToken.None);
+            
 
             // Assert
             _mockSlottedInterval.Verify(m => m.Calculate(new DateTime(2000, 1, 1, 12, 0, 0), TimeSpan.FromMinutes(2)));
@@ -154,6 +214,26 @@ namespace EShopworld.WorkerProcess.UnitTests
                 Options.Create(options));
 
             workerLease.InstanceId.Should().NotBeEmpty();
+        }
+
+        private WorkerLease BuildWorkerLeaseWithFixedInstanceId(Guid instanceId)
+        {
+            var options = new WorkerLeaseOptions
+            {
+                LeaseInterval = new TimeSpan(0, 2, 0),
+                Priority = 1,
+                WorkerType = "workertype",
+                InstanceId = instanceId
+            };
+
+            var workerLease = new WorkerLease(
+                _mockTelemetry.Object,
+                _mockLeaseAllocator.Object,
+                _mockTimer.Object,
+                _mockSlottedInterval.Object,
+                Options.Create(options));
+
+            return workerLease;
         }
     }
 }

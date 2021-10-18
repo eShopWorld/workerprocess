@@ -90,7 +90,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 manualResetEvent.Set();
             };
 
-            workerLease.StartLeasing();
+            await workerLease.StartLeasingAsync(CancellationToken.None);
 
             manualResetEvent.WaitOne(new TimeSpan(0, 2, 30));
 
@@ -118,7 +118,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             {
                 Thread.Sleep(new TimeSpan(0, 0, 1) * r.Next(10));
 
-                workerLease.StartLeasing();
+                await workerLease.StartLeasingAsync(CancellationToken.None);
 
                 _output.WriteLine($"Starting [{workerLease.InstanceId}]");
             }
@@ -153,7 +153,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             foreach (var (workerLease, _) in _workerLeases)
             {
-                workerLease.StartLeasing();
+                await workerLease.StartLeasingAsync(CancellationToken.None);
 
                 _output.WriteLine($"[{DateTime.UtcNow}] Starting [{workerLease.InstanceId}]");
             }
@@ -196,7 +196,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             {
                 Thread.Sleep(new TimeSpan(0, 0, 1) * r.Next(10));
 
-                workerLease.StartLeasing();
+                await workerLease.StartLeasingAsync(CancellationToken.None);
 
                 _output.WriteLine($"Starting [{workerLease.InstanceId}]");
             }
@@ -270,9 +270,9 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             //Act
             await leaseStore.InitialiseAsync();
 
-            lowPriorityWorkerProcess.StartLeasing();
+            await lowPriorityWorkerProcess.StartLeasingAsync(CancellationToken.None);
             await Task.Delay(500);
-            highPriorityWorkerProcess.StartLeasing();
+            await highPriorityWorkerProcess.StartLeasingAsync(CancellationToken.None);
             manualResetEvent.WaitOne(TimeSpan.FromMinutes(2));
 
             //Assert
@@ -332,9 +332,9 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             //Act
             await leaseStore.InitialiseAsync();
 
-            highPriorityWorkerProcess.StartLeasing();
+            await highPriorityWorkerProcess.StartLeasingAsync(CancellationToken.None);
             await Task.Delay(500);
-            lowPriorityWorkerProcess.StartLeasing();
+            await lowPriorityWorkerProcess.StartLeasingAsync(CancellationToken.None);
             manualResetEvent.WaitOne(TimeSpan.FromMinutes(2));
 
             //Assert
@@ -368,14 +368,14 @@ namespace EShopworld.WorkerProcess.IntegrationTests
                 lock (_lock)
                 {
                     var wp = sender as WorkerLease;
-                    winner = wp.InstanceId;
+                    winner = wp.InstanceId;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
                 }
                 manualResetEvent.Set();
                 manualResetEvent.Reset();
                 //While the lease is acquired another process tries to acquire the lease in between
                 options.Value.LeaseInterval = TimeSpan.FromSeconds(args.Expiry.Subtract(DateTime.UtcNow).TotalSeconds / 2);
                 var laterWorkerProcess = CreateWorkerLease(options);
-                laterWorkerProcess.StartLeasing();
+                laterWorkerProcess.StartLeasingAsync(CancellationToken.None);
                 laterWorkerProcess.LeaseAllocated += (sender, eventArgs) =>
                 {
                     //It should not get here
@@ -391,7 +391,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             //Act
             await leaseStore.InitialiseAsync();
 
-            leaseHolder.StartLeasing();
+            await leaseHolder.StartLeasingAsync(CancellationToken.None);
             manualResetEvent.WaitOne(TimeSpan.FromMinutes(2));
             await Task.Delay(500);
             //Give the other Process the chance to acquire the lease
@@ -447,9 +447,9 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             //Act
             await leaseStore.InitialiseAsync();
 
-            workerProcess2.StartLeasing();
+            await workerProcess2.StartLeasingAsync(CancellationToken.None);
             await Task.Delay(500);
-            workerProcess1.StartLeasing();
+            await workerProcess1.StartLeasingAsync(CancellationToken.None);
             WaitHandle.WaitAll(manualResetEventsDictionary.Values.ToArray(), TimeSpan.FromMinutes(1));
 
             //Assert
@@ -509,9 +509,9 @@ namespace EShopworld.WorkerProcess.IntegrationTests
             //Act
             await leaseStore.InitialiseAsync();
 
-            workerProcess2.StartLeasing();
+            await workerProcess2.StartLeasingAsync(CancellationToken.None);
             await Task.Delay(500);
-            workerProcess1.StartLeasing();
+            await workerProcess1.StartLeasingAsync(CancellationToken.None);
             WaitHandle.WaitAll(manualResetEventsDictionary.Values.ToArray(), TimeSpan.FromMinutes(1));
 
             //Assert
@@ -537,7 +537,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             Parallel.ForEach(_workerLeases, (workerLease) =>
             {
-                workerLease.Key.StartLeasing();
+                workerLease.Key.StartLeasingAsync(CancellationToken.None);
 
                 _output.WriteLine($"Starting [{workerLease.Key.InstanceId}]");
             });
@@ -591,7 +591,7 @@ namespace EShopworld.WorkerProcess.IntegrationTests
 
             void StartFunc(KeyValuePair<IWorkerLease, int> workerLease)
             {
-                workerLease.Key.StartLeasing();
+                workerLease.Key.StartLeasingAsync(CancellationToken.None);
                 _output.WriteLine($"[{DateTime.UtcNow}] Starting [{workerLease.Key.InstanceId}, priority {workerLease.Value}]");
             }
 

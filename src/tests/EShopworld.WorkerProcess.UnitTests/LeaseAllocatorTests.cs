@@ -513,5 +513,109 @@ namespace EShopworld.WorkerProcess.UnitTests
             _mockTelemetry.Verify(t => t.Publish(It.IsAny<LeaseReleaseEvent>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<int>()), Times.Never);
         }
+
+        [Fact, IsUnit]
+        public async Task TryReacquireLease_WhenValidLeaseExists_ShouldReacquireLease()
+        {
+            // Arrange
+            DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
+            ServerDateTime.UtcNowFunc = () => currentDateTime;
+            var instanceId = Guid.NewGuid();
+            ILease lease = new TestLease
+            {
+                Priority = _options.Priority,
+                LeaseType = _options.WorkerType,
+                InstanceId = instanceId,
+                LeasedUntil = currentDateTime.AddMinutes(5)
+            };
+
+            _mockStore.Setup(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()))
+                .ReturnsAsync(lease);
+            
+            // Act
+            var result = await _leaseAllocator.TryReacquireLease(instanceId, CancellationToken.None);
+
+            // Assert
+            result.Should().Be(lease);
+            _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Once);
+        }
+
+        [Fact, IsUnit]
+        public async Task TryReacquireLease_WhenExpiredLeaseExists_ShouldNotReacquireLease()
+        {
+            // Arrange
+            DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
+            ServerDateTime.UtcNowFunc = () => currentDateTime;
+            var instanceId = Guid.NewGuid();
+            ILease lease = new TestLease
+            {
+                Priority = _options.Priority,
+                LeaseType = _options.WorkerType,
+                InstanceId = instanceId,
+                LeasedUntil = currentDateTime.AddMinutes(-5)
+            };
+
+            _mockStore.Setup(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()))
+                .ReturnsAsync(lease);
+            
+            // Act
+            var result = await _leaseAllocator.TryReacquireLease(instanceId, CancellationToken.None);
+
+            // Assert
+            result.Should().BeNull();
+            _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Once);
+        }
+
+        [Fact, IsUnit]
+        public async Task TryReacquireLease_WhenNoLeaseExists_ShouldNotReacquireLease()
+        {
+            // Arrange
+            DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
+            ServerDateTime.UtcNowFunc = () => currentDateTime;
+            var instanceId = Guid.NewGuid();
+            ILease lease = new TestLease
+            {
+                Priority = _options.Priority,
+                LeaseType = _options.WorkerType,
+                InstanceId = instanceId,
+                LeasedUntil = currentDateTime.AddMinutes(-5)
+            };
+
+            _mockStore.Setup(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()))
+                .ReturnsAsync((ILease)null);
+            
+            // Act
+            var result = await _leaseAllocator.TryReacquireLease(instanceId, CancellationToken.None);
+
+            // Assert
+            result.Should().BeNull();
+            _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Once);
+        }
+
+        [Fact, IsUnit]
+        public async Task TryReacquireLease_WhenLeaseExistsForAnotherInstance_ShouldNotReacquireLease()
+        {
+            // Arrange
+            DateTime currentDateTime = new DateTime(2000, 1, 1, 12, 0, 0);
+            ServerDateTime.UtcNowFunc = () => currentDateTime;
+            var instanceId = Guid.NewGuid();
+            ILease lease = new TestLease
+            {
+                Priority = _options.Priority,
+                LeaseType = _options.WorkerType,
+                InstanceId = Guid.NewGuid(),
+                LeasedUntil = currentDateTime.AddMinutes(5)
+            };
+
+            _mockStore.Setup(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()))
+                .ReturnsAsync((ILease)null);
+            
+            // Act
+            var result = await _leaseAllocator.TryReacquireLease(instanceId, CancellationToken.None);
+
+            // Assert
+            result.Should().BeNull();
+            _mockStore.Verify(m => m.ReadByLeaseTypeAsync(It.IsAny<string>()), Times.Once);
+        }
     }
 }
