@@ -19,5 +19,13 @@ namespace EShopworld.WorkerProcess
         /// <param name="lease">The <see cref="ILease"/> instance to release</param>
         /// <returns></returns>
         Task ReleaseLeaseAsync(ILease lease);
+
+        /// <summary>
+        /// Attempts to reacquire an existing valid <see cref="ILease"/>. This is useful if an application is restarted.
+        /// </summary>
+        /// <param name="instanceId"></param>
+        /// <param name="token"></param>
+        /// <returns></returns>
+        Task<ILease> TryReacquireLease(Guid instanceId, CancellationToken token);
     }
 }
