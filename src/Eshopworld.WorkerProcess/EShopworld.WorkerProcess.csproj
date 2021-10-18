@@ -10,12 +10,12 @@
 
     <Platforms>x64</Platforms>
     <Platform>x64</Platform>
-    <Version>1.2.2</Version>
+    <Version>1.2.3</Version>
     <Copyright>Copyright ESW 2020</Copyright>
     <PackageProjectUrl>https://github.com/eShopWorld/workerprocess</PackageProjectUrl>
     <RepositoryUrl>https://github.com/eShopWorld/workerprocess</RepositoryUrl>
     <PackageReleaseNotes>
-		Updated Microsoft.Azure.DocumentDB.Core package to latest version
+		Reactivate exising Worker Lease on App Stop/Start
 	</PackageReleaseNotes>
     <Company>ESW</Company>
     <Authors>Derek Goslin, Keith Ebbitt, Ferdinando Aprovitolo</Authors>
