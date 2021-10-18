@@ -13,7 +13,7 @@ namespace EShopworld.WorkerProcess
         /// <summary>
         /// Start Leasing
         /// </summary>
-        Task StartLeasingAsync(CancellationToken cancellationToken);
+        Task StartLeasingAsync(CancellationToken cancellationToken = default);
         /// <summary>
         /// Stop Leasing
         /// </summary>

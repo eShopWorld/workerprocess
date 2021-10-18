@@ -51,14 +51,24 @@ namespace EShopworld.WorkerProcess
         public Guid InstanceId { get; }
 
         /// <inheritdoc />
-        public async Task StartLeasingAsync(CancellationToken cancellationToken)
+        public Task StartLeasingAsync(CancellationToken cancellationToken = default)
         {
-            await HandleExistingLeaseAsync(cancellationToken).ConfigureAwait(false);
-            
-            await Task.Run(async () =>
-                await _timer.ExecutePeriodicallyIn(
-                    _slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),
-                    (token) => OperationTelemetryHandler(LeaseAsync, token)).ConfigureAwait(false), cancellationToken);
+            try
+            {
+                return Task.Run(async () =>
+                {
+                    await HandleExistingLeaseAsync(cancellationToken).ConfigureAwait(false);
+
+                    await _timer.ExecutePeriodicallyIn(
+                        _slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),
+                        (token) => OperationTelemetryHandler(LeaseAsync, token)).ConfigureAwait(false);
+
+                }, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return Task.CompletedTask;
+            }
         }
 
         /// <inheritdoc />
