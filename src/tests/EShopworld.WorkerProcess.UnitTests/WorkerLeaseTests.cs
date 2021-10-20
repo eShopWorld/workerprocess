@@ -162,7 +162,9 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             // Assert
             _mockSlottedInterval.Verify(m => m.Calculate(new DateTime(2000, 1, 1, 12, 0, 0), TimeSpan.FromMinutes(2)));
-            _mockTimer.Verify(m => m.ExecutePeriodicallyIn(It.IsAny<TimeSpan>(),It.IsAny<Func<CancellationToken,Task<TimeSpan>>>()), Times.Once);
+            _mockTimer.Verify(m => m.ExecutePeriodicallyIn(It.IsAny<TimeSpan>(),
+                It.IsAny<Func<CancellationToken,Task<TimeSpan>>>(), 
+                It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [Fact, IsUnit]
