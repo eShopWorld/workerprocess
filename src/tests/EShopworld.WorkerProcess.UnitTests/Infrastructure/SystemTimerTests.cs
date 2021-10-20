@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using EShopworld.WorkerProcess.Infrastructure;
 using FluentAssertions;
 using Xunit;
+using System.Runtime.CompilerServices;
 
 namespace EShopworld.WorkerProcess.UnitTests.Infrastructure
 {
@@ -37,6 +38,31 @@ namespace EShopworld.WorkerProcess.UnitTests.Infrastructure
         }
 
         [Fact, IsUnit]
+        public async Task ExecutePeriodicallyIn_WhenTaskCancelled_LeasingIsCancelled()
+        {
+            // Arrange
+
+            var cts = new CancellationTokenSource();
+            cts.CancelAfter(1000);
+            var timer = new SystemTimer();
+            var isCalled = false;
+
+            // Act
+            var task = timer.ExecutePeriodicallyIn(TimeSpan.FromMilliseconds(500), async
+                (token) => 
+            {
+                isCalled = true;
+                   return await TestHandler(TestOperation, token);
+                }, cts.Token).ConfigureAwait(false);
+
+            Func<Task> act = async () => await task;
+
+            // Assert
+            act.Should().Throw<OperationCanceledException>();
+            isCalled.Should().BeTrue();
+        }
+
+        [Fact, IsUnit]
         public void SystemTimer_WhenTimerStops_ExecutorShouldNotRun()
         {
             //Arrange
@@ -58,6 +84,25 @@ namespace EShopworld.WorkerProcess.UnitTests.Infrastructure
             act.Should().Throw<OperationCanceledException>();
             isCalled.Should().BeFalse();
 
+        }
+
+        private async Task<TimeSpan> TestHandler(Func<CancellationToken, Task<TimeSpan>> operation, CancellationToken token)
+        {
+            try
+            {
+                var result = await operation(token).ConfigureAwait(false);
+
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+        }
+
+        private async Task<TimeSpan> TestOperation(CancellationToken token)
+        {
+            return await Task.FromResult(TimeSpan.Zero);
         }
     }
 }

@@ -14,8 +14,9 @@ namespace EShopworld.WorkerProcess.Infrastructure
         /// </summary>
         /// <param name="interval"></param>
         /// <param name="executor"></param>
+        /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        Task ExecutePeriodicallyIn(TimeSpan interval, Func<CancellationToken, Task<TimeSpan>> executor);
+        Task ExecutePeriodicallyIn(TimeSpan interval, Func<CancellationToken, Task<TimeSpan>> executor, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Stop the timer

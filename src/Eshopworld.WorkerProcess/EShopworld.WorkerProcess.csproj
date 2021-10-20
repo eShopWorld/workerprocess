@@ -10,12 +10,13 @@
 
     <Platforms>x64</Platforms>
     <Platform>x64</Platform>
-    <Version>1.2.3</Version>
+    <Version>1.2.4</Version>
+    <Version>1.2.4</Version>
     <Copyright>Copyright ESW 2020</Copyright>
     <PackageProjectUrl>https://github.com/eShopWorld/workerprocess</PackageProjectUrl>
     <RepositoryUrl>https://github.com/eShopWorld/workerprocess</RepositoryUrl>
     <PackageReleaseNotes>
-		Reactivate exising Worker Lease on App Stop/Start
+		Reactivate exising Worker Lease on App Stop/Start, leasing can be stopped via external cancellationToken
 	</PackageReleaseNotes>
     <Company>ESW</Company>
     <Authors>Derek Goslin, Keith Ebbitt, Ferdinando Aprovitolo</Authors>
