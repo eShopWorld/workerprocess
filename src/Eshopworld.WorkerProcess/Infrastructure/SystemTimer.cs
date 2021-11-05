@@ -16,23 +16,16 @@ namespace EShopworld.WorkerProcess.Infrastructure
 
        
         /// <inheritdoc />
-        public async Task ExecutePeriodicallyIn(TimeSpan interval,Func<CancellationToken,Task<TimeSpan>> executor, CancellationToken cancellationToken = default)
+        public async Task ExecutePeriodicallyInAsync(TimeSpan interval,Func<CancellationToken,Task<TimeSpan>> executor, CancellationToken cancellationToken = default)
         {
-            try
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+            await Task.Delay(interval, _cancellationTokenSource.Token).ConfigureAwait(false);
+            while (!_cancellationTokenSource.IsCancellationRequested)
             {
-                _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
-                await Task.Delay(interval, _cancellationTokenSource.Token).ConfigureAwait(false);
-                while (!_cancellationTokenSource.IsCancellationRequested)
-                {
-                    var newInterval = await executor(_cancellationTokenSource.Token).ConfigureAwait(false);
+                var newInterval = await executor(_cancellationTokenSource.Token).ConfigureAwait(false);
 
-                    await Task.Delay(newInterval, _cancellationTokenSource.Token).ConfigureAwait(false);
-                }
-            }
-            catch (TaskCanceledException)
-            {
-                throw;
+                await Task.Delay(newInterval, _cancellationTokenSource.Token).ConfigureAwait(false);
             }
         }
 

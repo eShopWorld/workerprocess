@@ -151,6 +151,29 @@ namespace EShopworld.WorkerProcess.UnitTests
         }
 
         [Fact, IsUnit]
+        public async Task StartLeasingAsync_WhenTaskCancelled_LeasingIsCancelled()
+        {
+            // Arrange
+            var instanceId = Guid.NewGuid();
+            var cts = new CancellationTokenSource();
+            cts.CancelAfter(1000);
+
+            _mockTimer.Setup(t => t.ExecutePeriodicallyInAsync(
+                    It.IsAny<TimeSpan>(),
+                    It.IsAny<Func<CancellationToken, Task<TimeSpan>>>(),
+                    It.Is<CancellationToken>(t => t == cts.Token)))
+                .Returns(async () => await Task.Delay(TimeSpan.FromSeconds(30), cts.Token)).Verifiable();
+
+            var workerLease = BuildWorkerLeaseWithFixedInstanceId(instanceId);
+
+            // Act
+            await workerLease.StartLeasingAsync(cts.Token);
+
+            // Assert
+            _mockTimer.Verify();
+        }
+
+        [Fact, IsUnit]
         public async Task TestStartLease()
         {
             // Arrange
@@ -162,7 +185,7 @@ namespace EShopworld.WorkerProcess.UnitTests
 
             // Assert
             _mockSlottedInterval.Verify(m => m.Calculate(new DateTime(2000, 1, 1, 12, 0, 0), TimeSpan.FromMinutes(2)));
-            _mockTimer.Verify(m => m.ExecutePeriodicallyIn(It.IsAny<TimeSpan>(),
+            _mockTimer.Verify(m => m.ExecutePeriodicallyInAsync(It.IsAny<TimeSpan>(),
                 It.IsAny<Func<CancellationToken,Task<TimeSpan>>>(), 
                 It.IsAny<CancellationToken>()), Times.Once);
         }

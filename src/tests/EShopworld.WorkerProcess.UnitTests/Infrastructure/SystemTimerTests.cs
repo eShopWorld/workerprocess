@@ -21,7 +21,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Infrastructure
 
             //Act
             var isCalled = false;
-            var task=timer.ExecutePeriodicallyIn(TimeSpan.FromMilliseconds(1), async (token)=>
+            var task=timer.ExecutePeriodicallyInAsync(TimeSpan.FromMilliseconds(1), async (token)=>
             {
                 isCalled = true;
                 manualReset.Set();
@@ -48,7 +48,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Infrastructure
             var isCalled = false;
 
             // Act
-            var task = timer.ExecutePeriodicallyIn(TimeSpan.FromMilliseconds(500), async
+            var task = timer.ExecutePeriodicallyInAsync(TimeSpan.FromMilliseconds(500), async
                 (token) => 
             {
                 isCalled = true;
@@ -71,7 +71,7 @@ namespace EShopworld.WorkerProcess.UnitTests.Infrastructure
 
             //Act
             var isCalled = false; 
-            var task= timer.ExecutePeriodicallyIn(TimeSpan.FromMilliseconds(500), (token) =>
+            var task= timer.ExecutePeriodicallyInAsync(TimeSpan.FromMilliseconds(500), (token) =>
             {
                 isCalled = true;
                 return Task.FromResult(TimeSpan.Zero);
