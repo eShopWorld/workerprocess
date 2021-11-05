@@ -61,7 +61,7 @@ namespace EShopworld.WorkerProcess
 
                     await _timer.ExecutePeriodicallyIn(
                         _slottedInterval.Calculate(ServerDateTime.UtcNow, _options.Value.LeaseInterval),
-                        (token) => OperationTelemetryHandler(LeaseAsync, token)).ConfigureAwait(false);
+                        (token) => OperationTelemetryHandler(LeaseAsync, token), cancellationToken).ConfigureAwait(false);
 
                 }, cancellationToken);
             }
